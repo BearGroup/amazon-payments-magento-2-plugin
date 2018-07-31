@@ -13,35 +13,51 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
+
 namespace Amazon\Login\Controller\Login;
 
-use Magento\Framework\App\Action\Action;
+use Amazon\Core\Client\ClientFactoryInterface;
 use Amazon\Core\Helper\Data as AmazonCoreHelper;
 use Amazon\Login\Model\Validator\AccessTokenRequestValidator;
+use Magento\Checkout\Model\Session;
 use Magento\Customer\Model\Url;
+use Magento\Framework\App\Action\Action;
 use Magento\Framework\App\Action\Context;
+use Psr\Log\LoggerInterface;
 
-/**
- * Class Guest
- * @package Amazon\Login\Controller\Login
- */
 class Guest extends Action
 {
-
     /**
      * @var AmazonCoreHelper
      */
-    protected $amazonCoreHelper;
+    private $amazonCoreHelper;
 
     /**
      * @var Url
      */
-    protected $customerUrl;
+    private $customerUrl;
 
     /**
      * @var AccessTokenRequestValidator
      */
-    protected $accessTokenRequestValidator;
+    private $accessTokenRequestValidator;
+
+    /**
+     * @var Session
+     */
+    private $session;
+
+    /**
+     * @var ClientFactoryInterface
+     */
+    private $clientFactory;
+
+    /**
+     * @var LoggerInterface
+     */
+    private $logger;
+
+    private $quoteRepository;
 
     /**
      * Guest constructor.
@@ -49,16 +65,26 @@ class Guest extends Action
      * @param AmazonCoreHelper $amazonCoreHelper
      * @param Url $customerUrl
      * @param AccessTokenRequestValidator $accessTokenRequestValidator
+     * @param Session $session
+     * @param ClientFactoryInterface $clientFactory
+     * @param LoggerInterface $logger
      */
     public function __construct(
         Context $context,
         AmazonCoreHelper $amazonCoreHelper,
         Url $customerUrl,
-        AccessTokenRequestValidator $accessTokenRequestValidator
-    ) {
-        $this->amazonCoreHelper            = $amazonCoreHelper;
-        $this->customerUrl                 = $customerUrl;
+        AccessTokenRequestValidator $accessTokenRequestValidator,
+        Session $session,
+        ClientFactoryInterface $clientFactory,
+        LoggerInterface $logger
+    )
+    {
+        $this->amazonCoreHelper = $amazonCoreHelper;
+        $this->customerUrl = $customerUrl;
         $this->accessTokenRequestValidator = $accessTokenRequestValidator;
+        $this->session = $session;
+        $this->clientFactory = $clientFactory;
+        $this->logger = $logger;
         parent::__construct($context);
     }
 
@@ -71,23 +97,66 @@ class Guest extends Action
             return $this->getRedirectLogin();
         }
 
+        $customerData = $this->getAmazonCustomer();
+        if ($customerData && isset($customerData['email'])) {
+            $quote = $this->session->getQuote();
+
+            if ($quote) {
+                $quote->setCustomerEmail($customerData['email']);
+                $quote->save();
+            }
+        }
+
         return $this->_redirect('checkout');
     }
 
     /**
      * @return string
      */
-    protected function getRedirectLogin()
+    private function getRedirectLogin()
     {
         return $this->_redirect($this->customerUrl->getLoginUrl());
     }
 
     /**
      * @return bool
-     * @throws \Zend_Validate_Exception
      */
-    protected function isValidToken()
+    private function isValidToken()
     {
-        return $this->accessTokenRequestValidator->isValid($this->getRequest());
+        $isValid = false;
+        try {
+            $isValid = $this->accessTokenRequestValidator->isValid($this->getRequest());
+        } catch (\Zend_Validate_Exception $e) {
+            $this->logger->error($e);
+        }
+
+        return $isValid;
+    }
+
+    /**
+     * @return array
+     */
+    private function getAmazonCustomer()
+    {
+        try {
+            $userInfo = $this->clientFactory
+                ->create()
+                ->getUserInfo($this->getRequest()->getParam('access_token'));
+
+            if (is_array($userInfo) && isset($userInfo['user_id'])) {
+                $data = [
+                    'id' => $userInfo['user_id'],
+                    'email' => $userInfo['email'],
+                    'name' => $userInfo['name'],
+                    'country' => $this->amazonCoreHelper->getRegion(),
+                ];
+
+                return $data;
+            }
+        } catch (\Exception $e) {
+            $this->logger->error($e);
+        }
+
+        return [];
     }
 }
