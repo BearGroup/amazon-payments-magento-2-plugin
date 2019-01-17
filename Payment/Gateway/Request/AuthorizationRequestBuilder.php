@@ -75,8 +75,7 @@ class AuthorizationRequestBuilder implements BuilderInterface
         Data $coreHelper,
         ManagerInterface $eventManager,
         CategoryExclusion $categoryExclusion
-    )
-    {
+    ) {
         $this->config = $config;
         $this->coreHelper = $coreHelper;
         $this->productMetaData = $productMetadata;
@@ -96,14 +95,35 @@ class AuthorizationRequestBuilder implements BuilderInterface
         $data = [];
 
         $paymentDO = $this->subjectReader->readPayment($buildSubject);
-
         $payment = $paymentDO->getPayment();
+        $orderDO = $paymentDO->getOrder();
+        $storeId = $orderDO->getStoreId();
+        $storeName = '';
 
-        $order = $paymentDO->getOrder();
+        $currencyCode = $orderDO->getCurrencyCode();
+        $total = $buildSubject['amount'];
 
-        $quote = $this->subjectReader->getQuote();
+        // capture sale or new auth/capture for partial capture
+        if (isset($buildSubject['multicurrency']) && $buildSubject['multicurrency']['multicurrency']) {
+            $currencyCode = $buildSubject['multicurrency']['order_currency'];
+            $total = $buildSubject['multicurrency']['total'];
+            $storeName = $buildSubject['multicurrency']['store_name'];
+            $storeId = $buildSubject['multicurrency']['store_id'];
+        } else {
+            // auth has not happened for this order yet
+            if ($this->coreHelper->useMultiCurrency($storeId)) {
+                $quote = $this->subjectReader->getQuote();
+                $total = $quote->getGrandTotal();
+                $currencyCode = $quote->getQuoteCurrencyCode();
+            }
+        }
 
-        if (!$this->categoryExclusion->isQuoteDirty()) {
+
+        if (isset($buildSubject['amazon_order_id']) && $buildSubject['amazon_order_id']) {
+            $amazonId = $buildSubject['amazon_order_id'];
+        } else {
+            $quote = $this->subjectReader->getQuote();
+
             if (!$quote->getReservedOrderId()) {
                 try {
                     $quote->reserveOrderId()->save();
@@ -112,46 +132,45 @@ class AuthorizationRequestBuilder implements BuilderInterface
                 }
             }
 
+            $storeName = $quote->getStore()->getName();
             $amazonId = $this->subjectReader->getAmazonId();
+        }
 
-            if ($order && $amazonId) {
-
+        if ($amazonId) {
                 $data = [
                     'amazon_order_reference_id' => $amazonId,
-                    'amount' => $buildSubject['amount'],
-                    'currency_code' => $order->getCurrencyCode(),
-                    'store_name' => $quote->getStore()->getName(),
+                    'amount' => $total,
+                    'currency_code' => $currencyCode,
+                    'store_name' => $storeName,
                     'custom_information' =>
                         'Magento Version : ' . $this->productMetaData->getVersion() . ' ' .
                         'Plugin Version : ' . $this->coreHelper->getVersion(),
                     'platform_id' => $this->config->getValue('platform_id'),
                     'request_payment_authorization' => true
                 ];
-            }
+        }
 
-            if ($this->coreHelper->isSandboxEnabled('store', $quote->getStoreId())) {
+        if ($this->coreHelper->isSandboxEnabled('store', $storeId)) {
+            $data['additional_information'] =
+                $payment->getAdditionalInformation(AdditionalInformation::KEY_SANDBOX_SIMULATION_REFERENCE);
 
-                $data['additional_information'] =
-                    $payment->getAdditionalInformation(AdditionalInformation::KEY_SANDBOX_SIMULATION_REFERENCE);
+            $eventData = [
+                'amazon_order_reference_id' => $amazonId,
+                'authorization_amount' => $total,
+                'currency_code' => $currencyCode,
+                'authorization_reference_id' => $amazonId . '-A' . time(),
+                'capture_now' => false,
+            ];
 
-                $eventData = [
-                    'amazon_order_reference_id' => $amazonId,
-                    'authorization_amount' => $buildSubject['amount'],
-                    'currency_code' => $order->getCurrencyCode(),
-                    'authorization_reference_id' => $amazonId . '-A' . time(),
-                    'capture_now' => false,
-                ];
-
-                $transport = new DataObject($eventData);
-                $this->eventManager->dispatch(
-                    'amazon_payment_authorize_before',
-                    [
-                        'context' => 'authorization',
-                        'payment' => $paymentDO->getPayment(),
-                        'transport' => $transport
-                    ]
-                );
-            }
+            $transport = new DataObject($eventData);
+            $this->eventManager->dispatch(
+                'amazon_payment_authorize_before',
+                [
+                    'context' => 'authorization',
+                    'payment' => $paymentDO->getPayment(),
+                    'transport' => $transport
+                ]
+            );
         }
 
         return $data;

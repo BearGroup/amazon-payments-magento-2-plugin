@@ -42,7 +42,14 @@ define(
         'use strict';
 
         var self,
-            countryData = customerData.get('directory-data');
+            countryData = customerData.get('directory-data'),
+            $amazonPayment,
+            serviceUrl,
+            placeOrder,
+            payload,
+            amazonAddress,
+            addressData,
+            customerField;
 
         return Component.extend({
             defaults: {
@@ -51,7 +58,9 @@ define(
             options: {
                 sellerId: registry.get('amazonPayment').merchantId,
                 paymentWidgetDOMId: 'walletWidgetDiv',
-                widgetScope: registry.get('amazonPayment').loginScope
+                widgetScope: registry.get('amazonPayment').loginScope,
+                presentmentCurrency: registry.get('amazonPayment').presentmentCurrency,
+                useMultiCurrency: registry.get('amazonPayment').useMultiCurrency
             },
             isCustomerLoggedIn: customer.isLoggedIn,
             isAmazonAccountLoggedIn: amazonStorage.isAmazonAccountLoggedIn,
@@ -72,7 +81,7 @@ define(
              * Init payment widget
              */
             initPaymentWidget: function () {
-                var $amazonPayment = $('#amazon_payment');
+                $amazonPayment = $('#amazon_payment');
 
                 self.renderPaymentWidget();
                 $amazonPayment.trigger('click'); //activate Amazon Pay method on render
@@ -83,7 +92,7 @@ define(
              * render Amazon Pay Widget
              */
             renderPaymentWidget: function () {
-                new OffAmazonPayments.Widgets.Wallet({ // eslint-disable-line no-undef
+                var widget = new OffAmazonPayments.Widgets.Wallet({ // eslint-disable-line no-undef
                     sellerId: self.options.sellerId,
                     scope: self.options.widgetScope,
                     amazonOrderReferenceId: amazonStorage.getOrderReference(),
@@ -105,7 +114,15 @@ define(
                     onError: function (error) {
                         errorProcessor.process(error);
                     }
-                }).bind(self.options.paymentWidgetDOMId);
+                });
+                if (self.options.useMultiCurrency) {
+                    widget.setPresentmentCurrency(self.options.presentmentCurrency);
+                    $('tr.totals.charge').hide();
+                }
+                else {
+                    $('tr.totals.charge').show();
+                }
+                widget.bind(self.options.paymentWidgetDOMId);
             },
 
             /**
@@ -140,7 +157,7 @@ define(
              * Save billing address
              */
             setBillingAddressFromAmazon: function () {
-                var serviceUrl = urlBuilder.createUrl('/amazon-billing-address/:amazonOrderReference', {
+                serviceUrl = urlBuilder.createUrl('/amazon-billing-address/:amazonOrderReference', {
                         amazonOrderReference: amazonStorage.getOrderReference()
                     }),
                     payload = {
@@ -154,7 +171,7 @@ define(
                     JSON.stringify(payload)
                 ).done(
                     function (data) {
-                        var amazonAddress = data.shift(), addressData;
+                        amazonAddress = data.shift();
 
                         addressData = addressConverter.formAddressDataToQuoteAddress(amazonAddress);
                         addressData.telephone = !addressData.telephone ? '0000000000' : addressData.telephone;
@@ -162,8 +179,8 @@ define(
                         selectBillingAddress(addressData);
                         amazonStorage.isPlaceOrderDisabled(false);
 
-                        if(window.checkoutConfig.amazonLogin.amazon_customer_email) {
-                            var customerField = $('#customer-email').val();
+                        if (window.checkoutConfig.amazonLogin.amazon_customer_email) {
+                            customerField = $('#customer-email').val();
 
                             if (!customerField) {
                                 $('#customer-email').val(window.checkoutConfig.amazonLogin.amazon_customer_email);
@@ -197,8 +214,6 @@ define(
              * Save order
              */
             placeOrder: function (data, event) {
-                var placeOrder;
-
                 self = this;
 
                 if (event) {

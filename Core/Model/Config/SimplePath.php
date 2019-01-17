@@ -31,6 +31,7 @@ class SimplePath
 {
 
     const CONFIG_XML_PATH_PRIVATE_KEY = 'payment/amazon_payments/simplepath/privatekey';
+
     const CONFIG_XML_PATH_PUBLIC_KEY  = 'payment/amazon_payments/simplepath/publickey';
 
     private $_spIds = [
@@ -47,11 +48,29 @@ class SimplePath
         'JPY' => 'ja',
     ];
 
+    /**
+     * @var
+     */
     private $_storeId;
+
+    /**
+     * @var
+     */
     private $_websiteId;
+
+    /**
+     * @var string
+     */
     private $_scope;
+
+    /**
+     * @var int
+     */
     private $_scopeId;
 
+    /**
+     * @var CoreHelper
+     */
     private $coreHelper;
 
     /**
@@ -199,7 +218,9 @@ class SimplePath
     /**
      * Return RSA public key
      *
-     * @param bool $pemformat Return key in PEM format
+     * @param bool $pemformat
+     * @param bool $reset
+     * @return mixed|string|string[]|null
      */
     public function getPublicKey($pemformat = false, $reset = false)
     {
@@ -274,7 +295,8 @@ class SimplePath
             // Retrieve Amazon public key to verify signature
             try {
                 $client = new \Zend_Http_Client(
-                    $this->getEndpointPubkey(), [
+                    $this->getEndpointPubkey(),
+                    [
                         'maxredirects' => 2,
                         'timeout'      => 30,
                     ]
@@ -335,7 +357,8 @@ class SimplePath
             $this->messageManager->addError(
                 __(
                     "If you're experiencing consistent errors with transferring keys, " .
-                    "click <a href=\"%1\" target=\"_blank\">Manual Transfer Instructions</a> to learn more.", $link
+                    "click <a href=\"%1\" target=\"_blank\">Manual Transfer Instructions</a> to learn more.",
+                    $link
                 )
             );
         }
@@ -346,7 +369,9 @@ class SimplePath
     /**
      * Save values to Mage config
      *
-     * @param string $json
+     * @param $json
+     * @param bool $autoEnable
+     * @return bool
      */
     public function saveToConfig($json, $autoEnable = true)
     {
@@ -534,6 +559,7 @@ class SimplePath
             'isSecure'      => (int) ($this->request->isSecure()),
             'hasOpenssl'    => (int) (extension_loaded('openssl')),
             'formParams'    => $this->getFormParams(),
+            'isMultiCurrencyRegion' => (int) $this->coreHelper->isMulticurrencyRegion(),
         ];
     }
 }

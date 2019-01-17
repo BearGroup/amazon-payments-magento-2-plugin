@@ -83,9 +83,11 @@ class Config extends Template
             'loginScope'               => $this->coreHelper->getLoginScope(),
             'allowAmLoginLoading'      => $this->coreHelper->allowAmLoginLoading(),
             'isEuPaymentRegion'        => $this->coreHelper->isEuPaymentRegion(),
+            'presentmentCurrency'      => $this->coreHelper->getPresentmentCurrency(),
             'oAuthHashRedirectUrl'     => $this->coreHelper->getOAuthRedirectUrl(),
             'isQuoteDirty'             => $this->categoryExclusionHelper->isQuoteDirty(),
-            'region'                   => $this->coreHelper->getRegion()
+            'region'                   => $this->coreHelper->getRegion(),
+            'useMultiCurrency'         => $this->coreHelper->useMultiCurrency()
         ];
 
         if ($this->coreHelper->isSandboxEnabled()) {
@@ -108,7 +110,7 @@ class Config extends Template
      */
     public function isExtensionEnabled()
     {
-	    return ($this->coreHelper->isPwaEnabled() || $this->coreHelper->isLwaEnabled());
+        return ($this->coreHelper->isPwaEnabled() || $this->coreHelper->isLwaEnabled());
     }
 
     /**

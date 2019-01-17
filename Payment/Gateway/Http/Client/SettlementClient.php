@@ -16,8 +16,6 @@
 
 namespace Amazon\Payment\Gateway\Http\Client;
 
-use Amazon\Core\Exception\AmazonServiceUnavailableException;
-
 /**
  * Class SettlementClient
  * Amazon Pay capture client
