@@ -43,13 +43,14 @@ define([
              */
             _create: function () {
                 _this = this;
-                var __this = this;
+
                 this._verifyAmazonConfig();
 
                 if (typeof OffAmazonPayments === 'undefined') {
-                    $(window).on('OffAmazonPayments', function() {
-                        __this._renderAmazonButton();
-                    });
+                    // async render
+                    $(window).on('OffAmazonPayments', $.proxy(function () {
+                        this._renderAmazonButton();
+                    }, this));
                 } else {
                     this._renderAmazonButton();
                 }

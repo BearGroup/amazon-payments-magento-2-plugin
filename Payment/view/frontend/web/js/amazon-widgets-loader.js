@@ -14,11 +14,9 @@
  */
 
 define(['uiRegistry'], function(registry) {
-
-    if (registry.get('amazonPayment') !== undefined) {
-        var amazonPayment = registry.get('amazonPayment');
-
+    'use strict';
+    registry.get('amazonPayment', function (amazonPayment) {
         // Load external Widgets.js
         require([amazonPayment.widgetUrl]);
-    }
+    });
 });

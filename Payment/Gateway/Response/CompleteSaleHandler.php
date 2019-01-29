@@ -75,7 +75,6 @@ class CompleteSaleHandler implements HandlerInterface
 
         $paymentDO = $this->subjectReader->readPayment($handlingSubject);
         $payment = $paymentDO->getPayment();
-        $order = $this->subjectReader->getOrder();
 
         if ($response['status']) {
             $payment->setTransactionId($response['capture_transaction_id']);
@@ -83,7 +82,9 @@ class CompleteSaleHandler implements HandlerInterface
 
 
             if ($response['timeout']) {
-                $pendingAuthorization = $this->pendingAuthorizationFactory->create()
+                $order = $this->subjectReader->getOrder();
+
+                $this->pendingAuthorizationFactory->create()
                     ->setAuthorizationId($response['authorize_transaction_id'])
                     ->setCaptureId($response['capture_transaction_id'])
                     ->setCapture(true)
@@ -92,14 +93,14 @@ class CompleteSaleHandler implements HandlerInterface
                 $payment->setIsTransactionPending(true);
                 $order->setState($order::STATE_PAYMENT_REVIEW)->setStatus($order::STATE_PAYMENT_REVIEW);
                 $payment->setIsTransactionClosed(false);
-            }
-            else {
+            } else {
                 $payment->setIsTransactionClosed(true);
             }
 
-            $quoteLink = $this->subjectReader->getQuoteLink();
-            $quoteLink->setConfirmed(true)->save();
+            if (!isset($handlingSubject['partial_capture']) || !$handlingSubject['partial_capture']) {
+                $quoteLink = $this->subjectReader->getQuoteLink();
+                $quoteLink->setConfirmed(true)->save();
+            }
         }
     }
-
 }
