@@ -21,11 +21,13 @@ use Amazon\Payment\Api\Ipn\CompositeProcessorInterface;
 use Amazon\Payment\Ipn\IpnHandlerFactoryInterface;
 use Magento\Framework\App\Action\Action;
 use Magento\Framework\App\Action\Context;
+use Magento\Framework\App\CsrfAwareActionInterface;
+use Magento\Framework\App\Request\InvalidRequestException;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\App\ResponseInterface;
 use Magento\Framework\Exception\NotFoundException;
 
-class Ipn extends Action
+class Ipn extends Action implements CsrfAwareActionInterface
 {
     /**
      * @var IpnHandlerFactoryInterface
@@ -66,5 +68,24 @@ class Ipn extends Action
         $ipnHandler = $this->ipnHandlerFactory->create($headers, $body);
         $ipnData    = $ipnHandler->toArray();
         $this->compositeProcessor->process($ipnData);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function createCsrfValidationException(
+        RequestInterface $request
+    ): ?InvalidRequestException {
+        return null;
+    }
+
+    /**
+     * Disable Magento's CSRF validation.  The IPN request signature will be verified later by the Amazon Pay SDK.
+     *
+     * @inheritDoc
+     */
+    public function validateForCsrf(RequestInterface $request): ?bool
+    {
+        return true;
     }
 }
