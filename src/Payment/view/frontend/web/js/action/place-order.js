@@ -34,7 +34,7 @@ define(
 
             /** Checkout for guest and registered customer. */
             if (!customer.isLoggedIn()) {
-                serviceUrl = urlBuilder.createUrl('/guest-carts/:quoteId/payment-information', {
+                serviceUrl = urlBuilder.createUrl('/guest-carts/:quoteId/set-payment-information', {
                     quoteId: quote.getQuoteId()
                 });
                 payload = {
@@ -44,7 +44,7 @@ define(
                     billingAddress: quote.billingAddress()
                 };
             } else {
-                serviceUrl = urlBuilder.createUrl('/carts/mine/payment-information', {});
+                serviceUrl = urlBuilder.createUrl('/carts/mine/set-payment-information', {});
                 payload = {
                     cartId: quote.getQuoteId(),
                     paymentMethod: paymentData,
@@ -54,28 +54,38 @@ define(
 
             fullScreenLoader.startLoader();
 
-            return storage.post(
-                serviceUrl,
-                JSON.stringify(payload)
-            ).done(
-                function () {
-                    if (redirectOnSuccess) {
-                        window.location.replace(url.build('checkout/onepage/success/'));
+            //STUB: use actual merchant and order IDs!
+            //TODO: correct way to access OffAmazonPayments?
+            return OffAmazonPayments.initConfirmationFlow('A3PXB0XEO3C5TZ', amazonStorage.getOrderReference(), function(confirmationFlow) {
+//            return OffAmazonPayments.initConfirmationFlow('AY7CV2FF6QJU1', amazonStorage.get, function(confirmationFlow) {
+                console.log(confirmationFlow);
+                return storage.post(
+                    serviceUrl,
+                    JSON.stringify(payload)
+                ).done(
+                    function () {
+                        confirmationFlow.success();
+                        if (redirectOnSuccess) {
+//                            window.location.replace(url.build('checkout/onepage/success/'));
+                              console.log('ok!');
+                        }
                     }
-                }
-            ).fail(
-                function (response) {
-                    errorProcessor.process(response);
-                    amazonStorage.amazonDeclineCode(response.responseJSON.code);
-                    fullScreenLoader.stopLoader(true);
-                    if (response.responseJSON.code === 4273) {
-                        setTimeout(function () {
-                            window.location.replace(url.build('checkout/cart/'));
-                        }, 5000);
+                ).fail(
+                    function (response) {
+                        console.log('error!');
+                        console.log(response);
+                        errorProcessor.process(response);
+                        amazonStorage.amazonDeclineCode(response.responseJSON.code);
+                        fullScreenLoader.stopLoader(true);
+                        if (response.responseJSON.code === 4273) {
+                            setTimeout(function () {
+//                                window.location.replace(url.build('checkout/cart/'));
+                            }, 5000);
+                        }
+                    }
+                );
+            });
 
-                    }
-                }
-            );
         };
     }
 );

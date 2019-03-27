@@ -177,7 +177,8 @@ class AmazonPaymentAdapter
 
         $response = $this->clientFactory->create($storeId)->confirmOrderReference(
             [
-                'amazon_order_reference_id' => $amazonOrderReferenceId
+                'amazon_order_reference_id' => $amazonOrderReferenceId,
+                'success_url' => 'https://demo2.aptest.beargroup.com'
             ]
         );
 
