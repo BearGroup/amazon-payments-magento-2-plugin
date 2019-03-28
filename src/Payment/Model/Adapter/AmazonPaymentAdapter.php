@@ -27,6 +27,8 @@ use Amazon\Core\Model\AmazonConfig;
 use Amazon\Payment\Api\Data\PendingAuthorizationInterfaceFactory;
 use Amazon\Payment\Api\Data\PendingCaptureInterfaceFactory;
 use Magento\Sales\Model\OrderRepository;
+use Magento\Framework\UrlInterface;
+
 
 /**
  * Class AmazonPaymentAdapter
@@ -117,7 +119,8 @@ class AmazonPaymentAdapter
         AmazonConfig $amazonConfig,
         Logger $logger,
         OrderLinkFactory $orderLinkFactory,
-        OrderRepository $orderRepository
+        OrderRepository $orderRepository,
+        UrlInterface $urlBuilder
     )
     {
         $this->clientFactory = $clientFactory;
@@ -131,6 +134,7 @@ class AmazonPaymentAdapter
         $this->pendingAuthorizationFactory = $pendingAuthorizationFactory;
         $this->orderLinkFactory = $orderLinkFactory;
         $this->orderRepository = $orderRepository;
+        $this->urlBuilder = $urlBuilder;
     }
 
     /**
@@ -171,14 +175,15 @@ class AmazonPaymentAdapter
      * @param  $amazonOrderReferenceId
      * @return array
      */
-    private function confirmOrderReference($storeId, $amazonOrderReferenceId)
+    public function confirmOrderReference($storeId, $amazonOrderReferenceId)
     {
         $response = [];
 
         $response = $this->clientFactory->create($storeId)->confirmOrderReference(
             [
                 'amazon_order_reference_id' => $amazonOrderReferenceId,
-                'success_url' => 'https://demo2.aptest.beargroup.com'
+                'success_url' => $this->urlBuilder->getUrl('amazonpayments/payment/completecheckout'),
+                'failure_url' => $this->urlBuilder->getUrl('amazonpayments/payment/completecheckout')
             ]
         );
 
@@ -270,6 +275,7 @@ class AmazonPaymentAdapter
         $response['constraints'] = [];
         $response['amazon_order_reference_id'] = $data['amazon_order_reference_id'];
 
+        /*
         if (!$attempts) {
             $detailResponse = $this->setOrderReferenceDetails($storeId, $data);
 
@@ -278,6 +284,7 @@ class AmazonPaymentAdapter
                 return $response;
             }
         }
+        */
 
         $confirmResponse = $this->confirmOrderReference($storeId, $data['amazon_order_reference_id']);
 

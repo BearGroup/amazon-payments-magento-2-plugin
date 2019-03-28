@@ -22,9 +22,10 @@ define(
         'Magento_Checkout/js/model/error-processor',
         'Magento_Customer/js/model/customer',
         'Magento_Checkout/js/model/full-screen-loader',
-        'Amazon_Payment/js/model/storage'
+        'Amazon_Payment/js/model/storage',
+        'Amazon_Payment/js/model/amazonPaymentConfig'
     ],
-    function (quote, urlBuilder, storage, url, errorProcessor, customer, fullScreenLoader, amazonStorage) {
+    function (quote, urlBuilder, storage, url, errorProcessor, customer, fullScreenLoader, amazonStorage, amazonPaymentConfig) {
         'use strict';
 
         return function (paymentData, redirectOnSuccess) {
@@ -56,7 +57,7 @@ define(
 
             //STUB: use actual merchant and order IDs!
             //TODO: correct way to access OffAmazonPayments?
-            return OffAmazonPayments.initConfirmationFlow('A3PXB0XEO3C5TZ', amazonStorage.getOrderReference(), function(confirmationFlow) {
+            return OffAmazonPayments.initConfirmationFlow(amazonPaymentConfig.getValue('merchantId'), amazonStorage.getOrderReference(), function(confirmationFlow) {
 //            return OffAmazonPayments.initConfirmationFlow('AY7CV2FF6QJU1', amazonStorage.get, function(confirmationFlow) {
                 console.log(confirmationFlow);
                 return storage.post(
