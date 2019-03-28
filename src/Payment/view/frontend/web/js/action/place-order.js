@@ -55,10 +55,7 @@ define(
 
             fullScreenLoader.startLoader();
 
-            //STUB: use actual merchant and order IDs!
-            //TODO: correct way to access OffAmazonPayments?
             return OffAmazonPayments.initConfirmationFlow(amazonPaymentConfig.getValue('merchantId'), amazonStorage.getOrderReference(), function(confirmationFlow) {
-//            return OffAmazonPayments.initConfirmationFlow('AY7CV2FF6QJU1', amazonStorage.get, function(confirmationFlow) {
                 console.log(confirmationFlow);
                 return storage.post(
                     serviceUrl,
@@ -66,21 +63,16 @@ define(
                 ).done(
                     function () {
                         confirmationFlow.success();
-                        if (redirectOnSuccess) {
-//                            window.location.replace(url.build('checkout/onepage/success/'));
-                              console.log('ok!');
-                        }
                     }
                 ).fail(
                     function (response) {
-                        console.log('error!');
-                        console.log(response);
+                        confirmationFlow.error();
                         errorProcessor.process(response);
                         amazonStorage.amazonDeclineCode(response.responseJSON.code);
                         fullScreenLoader.stopLoader(true);
                         if (response.responseJSON.code === 4273) {
                             setTimeout(function () {
-//                                window.location.replace(url.build('checkout/cart/'));
+                                window.location.replace(url.build('checkout/cart/'));
                             }, 5000);
                         }
                     }
