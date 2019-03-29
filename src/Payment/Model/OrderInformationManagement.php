@@ -32,6 +32,7 @@ use Magento\Quote\Model\Quote;
 use Magento\Store\Model\ScopeInterface;
 use AmazonPay\ResponseInterface;
 use Psr\Log\LoggerInterface;
+use Magento\Framework\UrlInterface;
 
 /**
  * @SuppressWarnings(PHPMD.CouplingBetweenObjects)
@@ -78,6 +79,8 @@ class OrderInformationManagement implements OrderInformationManagementInterface
      */
     private $productMetadata;
 
+    private $urlBuilder;
+
     /**
      * OrderInformationManagement constructor.
      * @param Session $session
@@ -98,6 +101,7 @@ class OrderInformationManagement implements OrderInformationManagementInterface
         QuoteLinkInterfaceFactory $quoteLinkFactory,
         LoggerInterface $logger,
         ProductMetadata $productMetadata
+        UrlInterface $urlBuilder
     ) {
         $this->session                              = $session;
         $this->clientFactory                        = $clientFactory;
@@ -107,6 +111,7 @@ class OrderInformationManagement implements OrderInformationManagementInterface
         $this->quoteLinkFactory                     = $quoteLinkFactory;
         $this->logger                               = $logger;
         $this->productMetadata                      = $productMetadata;
+        $this->urlBuilder                           = $urlBuilder;
     }
 
     /**
@@ -188,7 +193,9 @@ class OrderInformationManagement implements OrderInformationManagementInterface
         try {
             $response = $this->clientFactory->create($storeId)->confirmOrderReference(
                 [
-                    'amazon_order_reference_id' => $amazonOrderReferenceId
+                    'amazon_order_reference_id' => $amazonOrderReferenceId,
+                    'success_url' => $this->urlBuilder->getUrl('amazonpayments/payment/completecheckout'),
+                    'failure_url' => $this->urlBuilder->getUrl('amazonpayments/payment/completecheckout')
                 ]
             );
 
