@@ -79,8 +79,6 @@ class OrderInformationManagement implements OrderInformationManagementInterface
      */
     private $productMetadata;
 
-    private $urlBuilder;
-
     /**
      * OrderInformationManagement constructor.
      * @param Session $session
@@ -100,7 +98,7 @@ class OrderInformationManagement implements OrderInformationManagementInterface
         AmazonSetOrderDetailsResponseFactory $amazonSetOrderDetailsResponseFactory,
         QuoteLinkInterfaceFactory $quoteLinkFactory,
         LoggerInterface $logger,
-        ProductMetadata $productMetadata
+        ProductMetadata $productMetadata,
         UrlInterface $urlBuilder
     ) {
         $this->session                              = $session;
