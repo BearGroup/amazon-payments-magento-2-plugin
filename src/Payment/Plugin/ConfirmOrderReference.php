@@ -4,6 +4,7 @@ namespace Amazon\Payment\Plugin;
 
 use Magento\Checkout\Model\Session;
 use Magento\Checkout\Api\PaymentInformationManagementInterface;
+use Magento\Quote\Api\PaymentMethodManagementInterface;
 use Amazon\Payment\Model\Adapter\AmazonPaymentAdapter;
 use Amazon\Payment\Model\OrderInformationManagement;
 use Magento\Quote\Api\Data\PaymentInterface;
@@ -50,7 +51,7 @@ class ConfirmOrderReference
     }
 
     /**
-     * @param PaymentInformationManagementInterface $subject
+     * @param PaymentMethodManagementInterface $subject
      * @param $result
      * @param $cartId
      * @param PaymentInterface $paymentMethod
@@ -58,15 +59,13 @@ class ConfirmOrderReference
      * @return mixed
      * @throws \Magento\Framework\Exception\LocalizedException
      */
-    public function afterSavePaymentInformation(
-        PaymentInformationManagementInterface $subject,
+    public function afterSet(
+        PaymentMethodManagementInterface $subject,
         $result,
         $cartId,
-        PaymentInterface $paymentMethod,
-        AddressInterface $billingAddress = null
+        PaymentInterface $paymentMethod
     ) {
         if($paymentMethod->getMethod() == 'amazon_payment') { //TODO: constant?
-            /** @var \Magento\Quote\Model\Quote $quote */
             $quote = $this->checkoutSession->getQuote();
             $amazonOrderReferenceId = $quote
                 ->getExtensionAttributes()
@@ -74,11 +73,10 @@ class ConfirmOrderReference
                 ->getAmazonOrderReferenceId();
 
             $this->orderInformationManagement->saveOrderInformation($amazonOrderReferenceId);
-            $response = $this->adapter->confirmOrderReference($quote->getStoreId(), $amazonOrderReferenceId);
-            if(!$response) {
-                //TODO: use appropriate exception class
-                throw new \Exception('Unable to confirm order reference');
-            }
+            $this->orderInformationManagement->confirmOrderReference(
+                $amazonOrderReferenceId,
+                $quote->getStoreId()
+            );
         }
 
         return $result;

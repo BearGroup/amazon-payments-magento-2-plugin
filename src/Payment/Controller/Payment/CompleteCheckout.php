@@ -25,6 +25,7 @@ use Magento\Framework\App\RequestInterface;
 use Magento\Framework\App\ResponseInterface;
 use Magento\Framework\Exception\NotFoundException;
 use Magento\Quote\Api\CartManagementInterface;
+use Magento\Quote\Api\GuestCartManagementInterface;
 use \Magento\Checkout\Model\Session as CheckoutSession;
 
 class CompleteCheckout extends Action
@@ -45,29 +46,39 @@ class CompleteCheckout extends Action
         Context $context,
         AmazonConfig $amazonConfig,
         CartManagementInterface $cartManagement,
+        GuestCartManagementInterface $guestCartManagement,
         CheckoutSession $checkoutSession,
+        \Magento\Customer\Model\Session $session,
         \Magento\Framework\View\Result\PageFactory $pageFactory
     ) {
         parent::__construct($context);
         $this->amazonConfig = $amazonConfig;
         $this->cartManagement = $cartManagement;
         $this->checkoutSession = $checkoutSession;
+        $this->session = $session;
         $this->pageFactory = $pageFactory;
     }
 
     public function execute()
     {
         //STUB: complete order processing
-        $this->checkoutSession->set
         $authenticationStatus = $this->getRequest()->getParam('AuthenticationStatus');
         switch($authenticationStatus) {
             case 'Success':
                 //STUB: process order and handle/present any errors
                 try {
+                    if (!$this->session->isLoggedIn()) {
+                        $this->checkoutSession->getQuote()->setCheckoutMethod(CartManagementInterface::METHOD_GUEST);
+                    }
                     $this->cartManagement->placeOrder($this->checkoutSession->getQuoteId());
-                } catch(\Exception $e) {
-                    //TODO: handle exceptions
-                    throw $e;
+                } catch(\Exception $e) {  //TODO: handle only certain exception classes here
+                    //STUB: present error message to the user and link back to checkout
+                    echo(
+                        'An error has occurred:<br/>'
+                        .$e->getMessage()
+                        .'<br/><a href="/checkout/">Click here to return to checkout.</a>'
+                    );
+                    die();
                 }
                 return $this->_redirect('checkout/onepage/success');
                 break;
@@ -76,7 +87,11 @@ class CompleteCheckout extends Action
             case 'Abandoned':
             default:
                 //STUB: tell the user to try again and send them back to checkout
-                return $this->pageFactory->create();
+                echo(
+                    'Amazon was unable to authenticate the payment instrument.  Please try again, or use a different payment method.'
+                    .'<br/><a href="/checkout/">Click here to return to checkout.</a>'
+                );
+                die();
         }
     }
 }
