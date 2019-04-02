@@ -4,6 +4,8 @@
         <block
                 template="checkout-error.phtml"
                 class="Amazon\Payment\Block\CheckoutErrorMessage"
-                name="amazonpayments_payment_completecheckout_error"/>
+                name="amazonpayments_payment_completecheckout_error"
+                cacheable="false"
+        />
     </referenceBlock>
 </page>
