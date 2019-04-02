@@ -65,33 +65,29 @@ class CompleteCheckout extends Action
         $authenticationStatus = $this->getRequest()->getParam('AuthenticationStatus');
         switch($authenticationStatus) {
             case 'Success':
-                //STUB: process order and handle/present any errors
                 try {
                     if (!$this->session->isLoggedIn()) {
                         $this->checkoutSession->getQuote()->setCheckoutMethod(CartManagementInterface::METHOD_GUEST);
                     }
                     $this->cartManagement->placeOrder($this->checkoutSession->getQuoteId());
+                    return $this->_redirect('checkout/onepage/success');
                 } catch(\Exception $e) {  //TODO: handle only certain exception classes here
-                    //STUB: present error message to the user and link back to checkout
-                    echo(
-                        'An error has occurred:<br/>'
-                        .$e->getMessage()
-                        .'<br/><a href="/checkout/">Click here to return to checkout.</a>'
-                    );
-                    die();
+                    $this->checkoutSession->getQuote()->setError($e->getMessage());
                 }
-                return $this->_redirect('checkout/onepage/success');
                 break;
             case 'Failure':
-                //STUB: the user cannot use Amazon Pay for this purchase
+                $this->checkoutSession->getQuote()->setError(
+                    'Amazon Pay was unable to authenticate the payment instrument.  '
+                    . 'Please try again, or use a different payment method.'
+                );
+                break;
             case 'Abandoned':
             default:
-                //STUB: tell the user to try again and send them back to checkout
-                echo(
-                    'Amazon was unable to authenticate the payment instrument.  Please try again, or use a different payment method.'
-                    .'<br/><a href="/checkout/">Click here to return to checkout.</a>'
+                $this->checkoutSession->getQuote()->setError(
+                    'The SCA challenge was not completed successfully.'
+                    . 'Please try again, or use a different payment method.'
                 );
-                die();
         }
+        return $this->pageFactory->create();
     }
 }
