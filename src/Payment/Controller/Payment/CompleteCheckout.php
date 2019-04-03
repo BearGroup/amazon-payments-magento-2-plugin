@@ -84,7 +84,7 @@ class CompleteCheckout extends Action
             case 'Abandoned':
             default:
                 $this->checkoutSession->getQuote()->setError(
-                    'The SCA challenge was not completed successfully.'
+                    'The SCA challenge was not completed successfully.  '
                     . 'Please try again, or use a different payment method.'
                 );
         }
