@@ -10,6 +10,7 @@ use Amazon\Payment\Model\OrderInformationManagement;
 use Magento\Quote\Api\Data\PaymentInterface;
 use Magento\Quote\Api\Data\AddressInterface;
 use Magento\Framework\Exception\LocalizedException;
+use Amazon\Payment\Gateway\Config\Config as GatewayConfig;
 
 
 /**
@@ -65,7 +66,7 @@ class ConfirmOrderReference
         $cartId,
         PaymentInterface $paymentMethod
     ) {
-        if($paymentMethod->getMethod() == 'amazon_payment') { //TODO: constant?
+        if($paymentMethod->getMethod() == GatewayConfig::CODE) {
             $quote = $this->checkoutSession->getQuote();
             $amazonOrderReferenceId = $quote
                 ->getExtensionAttributes()
