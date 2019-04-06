@@ -54,19 +54,43 @@ define(
             }
 
             fullScreenLoader.startLoader();
-
-            return OffAmazonPayments.initConfirmationFlow(amazonPaymentConfig.getValue('merchantId'), amazonStorage.getOrderReference(), function(confirmationFlow) {
-                console.log(confirmationFlow);
+            if(['de', 'uk'].indexOf(amazonPaymentConfig.getValue('region')) !== -1) {
+                console.log('SCA enabled for region: ' + amazonPaymentConfig.getValue('region'));
+                return OffAmazonPayments.initConfirmationFlow(amazonPaymentConfig.getValue('merchantId'), amazonStorage.getOrderReference(), function(confirmationFlow) {
+                    return storage.post(
+                        serviceUrl,
+                        JSON.stringify(payload)
+                    ).done(
+                        function () {
+                            confirmationFlow.success();
+                        }
+                    ).fail(
+                        function (response) {
+                            confirmationFlow.error();
+                            errorProcessor.process(response);
+                            amazonStorage.amazonDeclineCode(response.responseJSON.code);
+                            fullScreenLoader.stopLoader(true);
+                            if (response.responseJSON.code === 4273) {
+                                setTimeout(function () {
+                                    window.location.replace(url.build('checkout/cart/'));
+                                }, 5000);
+                            }
+                        }
+                    );
+                });
+            } else {
+                console.log('SCA disabled for region: ' + amazonPaymentConfig.getValue('region'));
                 return storage.post(
                     serviceUrl,
                     JSON.stringify(payload)
                 ).done(
                     function () {
-                        confirmationFlow.success();
+                        if(redirectOnSuccess) {
+                            window.location.replace(url.build('amazonpayments/payment/completecheckout/?AuthenticationStatus=Success'));
+                        }
                     }
                 ).fail(
                     function (response) {
-                        confirmationFlow.error();
                         errorProcessor.process(response);
                         amazonStorage.amazonDeclineCode(response.responseJSON.code);
                         fullScreenLoader.stopLoader(true);
@@ -77,8 +101,7 @@ define(
                         }
                     }
                 );
-            });
-
+            }
         };
     }
 );
