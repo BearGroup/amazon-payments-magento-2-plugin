@@ -275,17 +275,6 @@ class AmazonPaymentAdapter
         $response['constraints'] = [];
         $response['amazon_order_reference_id'] = $data['amazon_order_reference_id'];
 
-        /*
-        if (!$attempts) {
-            $detailResponse = $this->setOrderReferenceDetails($storeId, $data);
-
-            if (isset($detailResponse['constraints']) && !empty($detailResponse['constraints'])) {
-                $response['constraints'] = $detailResponse['constraints'];
-                return $response;
-            }
-        }
-        */
-
         $confirmResponse = $this->confirmOrderReference($storeId, $data['amazon_order_reference_id']);
 
         if ($confirmResponse->response['Status'] == 200) {
