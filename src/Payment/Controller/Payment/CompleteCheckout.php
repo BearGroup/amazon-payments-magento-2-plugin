@@ -16,18 +16,20 @@
 namespace Amazon\Payment\Controller\Payment;
 
 use Amazon\Core\Model\AmazonConfig;
-use Amazon\Core\Model\Config\Source\UpdateMechanism;
-use Amazon\Payment\Api\Ipn\CompositeProcessorInterface;
-use Amazon\Payment\Ipn\IpnHandlerFactoryInterface;
+use Amazon\Core\Exception\AmazonWebapiException;
 use Magento\Framework\App\Action\Action;
 use Magento\Framework\App\Action\Context;
-use Magento\Framework\App\RequestInterface;
-use Magento\Framework\App\ResponseInterface;
-use Magento\Framework\Exception\NotFoundException;
 use Magento\Quote\Api\CartManagementInterface;
 use Magento\Quote\Api\GuestCartManagementInterface;
-use \Magento\Checkout\Model\Session as CheckoutSession;
+use Magento\Checkout\Model\Session as CheckoutSession;
+use Magento\Customer\Model\Session;
+use Magento\Framework\View\Result\PageFactory;
 
+/**
+ * Class CompleteCheckout
+ *
+ * @package Amazon\Payment\Controller\Payment
+ */
 class CompleteCheckout extends Action
 {
 
@@ -36,20 +38,40 @@ class CompleteCheckout extends Action
      */
     private $amazonConfig;
 
+    /**
+     * @var CheckoutSession
+     */
     private $checkoutSession;
 
+    /**
+     * @var CartManagementInterface
+     */
     private $cartManagement;
 
+    /**
+     * @var PageFactory
+     */
     private $pageFactory;
 
+    /**
+     * CompleteCheckout constructor.
+     *
+     * @param Context $context
+     * @param AmazonConfig $amazonConfig
+     * @param CartManagementInterface $cartManagement
+     * @param GuestCartManagementInterface $guestCartManagement
+     * @param CheckoutSession $checkoutSession
+     * @param Session $session
+     * @param PageFactory $pageFactory
+     */
     public function __construct(
         Context $context,
         AmazonConfig $amazonConfig,
         CartManagementInterface $cartManagement,
         GuestCartManagementInterface $guestCartManagement,
         CheckoutSession $checkoutSession,
-        \Magento\Customer\Model\Session $session,
-        \Magento\Framework\View\Result\PageFactory $pageFactory
+        Session $session,
+        PageFactory $pageFactory
     ) {
         parent::__construct($context);
         $this->amazonConfig = $amazonConfig;
@@ -59,11 +81,13 @@ class CompleteCheckout extends Action
         $this->pageFactory = $pageFactory;
     }
 
+    /*
+     * @inheritdoc
+     */
     public function execute()
     {
-        //STUB: complete order processing
         $authenticationStatus = $this->getRequest()->getParam('AuthenticationStatus');
-        switch($authenticationStatus) {
+        switch ($authenticationStatus) {
             case 'Success':
                 try {
                     if (!$this->session->isLoggedIn()) {
@@ -71,7 +95,7 @@ class CompleteCheckout extends Action
                     }
                     $this->cartManagement->placeOrder($this->checkoutSession->getQuoteId());
                     return $this->_redirect('checkout/onepage/success');
-                } catch(\Exception $e) {  //TODO: handle only certain exception classes here
+                } catch (AmazonWebapiException $e) {
                     $this->checkoutSession->getQuote()->setError($e->getMessage());
                 }
                 break;
