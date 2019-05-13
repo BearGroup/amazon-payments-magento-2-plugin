@@ -54,6 +54,12 @@ define([
                         window.location = amazonPaymentConfig.getValue('customerLoginPageUrl');
                     }
                 }, function(error) {
+                    if($.mage.cookies.get('amazon_Login_accessToken')
+                        && typeof document.hasStorageAccess === "function"
+                        && typeof document.requestStorageAccess === "function") {
+                        self.redirect();
+                    }
+
                     $('body').trigger('processStop');
                     customerData.set('messages', {
                         messages: [{
