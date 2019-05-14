@@ -33,43 +33,11 @@ define([
          * @private
          */
         _create: function () {
-
             self = this;
             // start the loading animation. WIll en on redirect, no explicit stop here
             $('body').trigger('processStart');
-
-            //verify nonce first
-            this.redirectOnInvalidState();
-
-            // we don't have the customer's consent or invalid request
-            this.redirectOnRequestWithError();
             this.setAuthStateCookies();
-            amazonCore.amazonDefined.subscribe(function () {
-                //only set this on the redirect page
-                amazon.Login.setUseCookie(true); //eslint-disable-line no-undef
-                amazonCore.verifyAmazonLoggedIn().then(function (loggedIn) {
-                    if (loggedIn) {
-                        self.redirect();
-                    } else {
-                        window.location = amazonPaymentConfig.getValue('customerLoginPageUrl');
-                    }
-                }, function(error) {
-                    if($.mage.cookies.get('amazon_Login_accessToken')
-                        && typeof document.hasStorageAccess === "function"
-                        && typeof document.requestStorageAccess === "function") {
-                        self.redirect();
-                        return;
-                    }
-
-                    $('body').trigger('processStop');
-                    customerData.set('messages', {
-                        messages: [{
-                            type: 'error',
-                            text: error
-                        }]
-                    });
-                });
-            }, this);
+            self.redirect();
         },
 
         /**
@@ -107,26 +75,6 @@ define([
             window.location = amazonPaymentConfig.getValue('redirectUrl') + '?access_token=' +
                 this.getURLParameter('access_token', location.hash);
         },
-
-        /**
-         * Redirect user on invalid state
-         */
-        redirectOnInvalidState: function () {
-            var state = this.getURLParameter('state', location.hash);
-
-            if (!state || !amazonCsrf.isValid(state)) {
-                window.location = amazonPaymentConfig.getValue('customerLoginPageUrl');
-            }
-        },
-
-        /**
-         * Redirect user on request error
-         */
-        redirectOnRequestWithError: function () {
-            if (this.getURLParameter('error', window.location)) {
-                window.location = amazonPaymentConfig.getValue('customerLoginPageUrl');
-            }
-        }
     });
 
     return $.amazon.AmazonRedirect;
