@@ -58,6 +58,7 @@ define([
                         && typeof document.hasStorageAccess === "function"
                         && typeof document.requestStorageAccess === "function") {
                         self.redirect();
+                        return;
                     }
 
                     $('body').trigger('processStop');
