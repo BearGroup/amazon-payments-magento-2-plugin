@@ -19,6 +19,8 @@ use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Event\ManagerInterface;
 use Amazon\Core\Exception\AmazonWebapiException;
 use Amazon\Payment\Gateway\Config\Config;
+use Amazon\Core\Logger\Logger as AmazonLogger;
+use Magento\Framework\App\ObjectManager;
 
 /**
  * Class AmazonAuthCommand
@@ -68,6 +70,8 @@ class AmazonAuthCommand implements CommandInterface
      */
     private $config;
 
+    private $amazonLogger;
+
     /**
      * @param BuilderInterface $requestBuilder
      * @param TransferFactoryInterface $transferFactory
@@ -96,6 +100,7 @@ class AmazonAuthCommand implements CommandInterface
         $this->logger = $logger;
         $this->errorMessageMapper = $errorMessageMapper;
         $this->config = $config;
+        $this->amazonLogger = ObjectManager::getInstance()->get(AmazonLogger::class);
     }
 
     /**
@@ -109,39 +114,45 @@ class AmazonAuthCommand implements CommandInterface
      */
     public function execute(array $commandSubject)
     {
-        $isTimeout = 0;
+        try {
+            $isTimeout = 0;
 
-        $transferO = $this->transferFactory->create(
-            $this->requestBuilder->build($commandSubject)
-        );
-
-        $response = $this->client->placeRequest($transferO);
-        if ($this->validator !== null) {
-            $result = $this->validator->validate(
-                array_merge($commandSubject, ['response' => $response])
+            $transferO = $this->transferFactory->create(
+                $this->requestBuilder->build($commandSubject)
             );
-            if (!$result->isValid()) {
-                // when Amazon Pay is set to receive asynchronous calls, we need to allow timeouts to pass validation and
-                // flag the handler to save the order for later processing.
-                $auth_mode = '';
-                if (isset($response['auth_mode'])) {
-                    $auth_mode = $response['auth_mode'];
+
+            $response = $this->client->placeRequest($transferO);
+            if ($this->validator !== null) {
+                $result = $this->validator->validate(
+                    array_merge($commandSubject, ['response' => $response])
+                );
+                if (!$result->isValid()) {
+                    // when Amazon Pay is set to receive asynchronous calls, we need to allow timeouts to pass validation and
+                    // flag the handler to save the order for later processing.
+                    $auth_mode = '';
+                    if (isset($response['auth_mode'])) {
+                        $auth_mode = $response['auth_mode'];
+                    }
+                    $isTimeout = $this->processErrors($result, $auth_mode);
                 }
-                $isTimeout = $this->processErrors($result, $auth_mode);
             }
-        }
 
-        $response['timeout'] = $isTimeout;
+            $response['timeout'] = $isTimeout;
 
-        if ($isTimeout) {
-            $response['status'] = true;
-        }
+            if ($isTimeout) {
+                $response['status'] = true;
+            }
 
-        if ($this->handler) {
-            $this->handler->handle(
-                $commandSubject,
-                $response
-            );
+            if ($this->handler) {
+                $this->handler->handle(
+                    $commandSubject,
+                    $response
+                );
+            }
+        } catch(\Exception $e) {
+            $this->amazonLogger->critical($e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine()
+                . "\nStack: " . $e->getTraceAsString());
+            throw $e;
         }
     }
 
