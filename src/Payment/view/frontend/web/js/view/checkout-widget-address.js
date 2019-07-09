@@ -78,6 +78,7 @@ define(
              * render Amazon address Widget
              */
             renderAddressWidget: function () {
+                amazon.Login.setUseCookie(true);
                 new OffAmazonPayments.Widgets.AddressBook({ // eslint-disable-line no-undef
                     sellerId: self.options.sellerId,
                     scope: self.options.widgetScope,

@@ -113,22 +113,13 @@ define([
          * Verify a user is logged into amazon
          */
         verifyAmazonLoggedIn: function () {
-            var defer  = $.Deferred(),
-                loginOptions = {
-                    scope: amazonPaymentConfig.getValue('loginScope'),
-                    popup: true,
-                    interactive: 'never'
-                };
-
-            // jscs:disable requireCamelCaseOrUpperCaseIdentifiers
-            amazon.Login.authorize(loginOptions, function (response) { //eslint-disable-line no-undef
-                if (response.error) {
-                    defer.reject(response.error);
-                } else {
-                    accessToken(response.access_token);
-                    defer.resolve(!response.error);
-                }
-            });
+            var defer = $.Deferred()
+            accessToken($.mage.cookies.get('amazon_Login_accessToken'));
+            if(accessToken()) {
+                defer.resolve(true);
+            } else {
+                defer.reject();
+            }
             // jscs:enable requireCamelCaseOrUpperCaseIdentifiers
 
             return defer.promise();

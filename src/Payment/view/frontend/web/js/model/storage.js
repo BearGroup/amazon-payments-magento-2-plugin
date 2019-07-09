@@ -97,6 +97,7 @@ define(
          * Verifies amazon user is logged in
          */
         function verifyAmazonLoggedIn() {
+            isAmazonAccountLoggedIn(amazonCore.accessToken);
             amazonCore.verifyAmazonLoggedIn().then(function (response) {
                 if (!amazonCore.amazonLoginError()) {
                     isAmazonAccountLoggedIn(response);
