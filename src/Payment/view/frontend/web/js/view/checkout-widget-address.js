@@ -71,14 +71,22 @@ define(
              * Call when component template is rendered
              */
             initAddressWidget: function () {
-                self.renderAddressWidget();
+                if(amazonStorage.amazonDefined()) {
+                    self.renderAddressWidget();
+                } else {
+                    var subscription = amazonStorage.amazonDefined.subscribe(function (defined) { //eslint-disable-line vars-on-top
+                        if (defined) {
+                            self.renderAddressWidget();
+                            subscription.dispose();
+                        }
+                    });
+                }
             },
 
             /**
              * render Amazon address Widget
              */
             renderAddressWidget: function () {
-                amazon.Login.setUseCookie(true);
                 new OffAmazonPayments.Widgets.AddressBook({ // eslint-disable-line no-undef
                     sellerId: self.options.sellerId,
                     scope: self.options.widgetScope,

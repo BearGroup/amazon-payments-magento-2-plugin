@@ -32,23 +32,25 @@ define([
         sandboxMode,
         region;
 
-    if (typeof amazon === 'undefined') {
-        /**
-         * Amazon login ready callback
-         */
-        window.onAmazonLoginReady = function () {
-            setClientId(clientId);  //eslint-disable-line no-use-before-define
-            doLogoutOnFlagCookie(); //eslint-disable-line no-use-before-define
+    accessToken($.mage.cookies.get('amazon_Login_accessToken'));
 
-            sandboxMode = amazonPaymentConfig.getValue('isSandboxEnabled', false);
-            amazon.Login.setSandboxMode(sandboxMode); //eslint-disable-line no-undef
-
-            region = regions[amazonPaymentConfig.getValue('region')];
-            amazon.Login.setRegion(region); //eslint-disable-line no-undef
-        };
-    } else {
+    var amazonLoginReadyCallback = function () {
         setClientId(clientId);  //eslint-disable-line no-use-before-define
         doLogoutOnFlagCookie(); //eslint-disable-line no-use-before-define
+
+        sandboxMode = amazonPaymentConfig.getValue('isSandboxEnabled', false);
+        amazon.Login.setSandboxMode(sandboxMode); //eslint-disable-line no-undef
+
+        region = regions[amazonPaymentConfig.getValue('region')];
+        amazon.Login.setRegion(region); //eslint-disable-line no-undef
+        amazon.Login.setUseCookie(true); //eslint-disable-line no-undef
+        amazonDefined(true);
+    };
+
+    if (typeof amazon === 'undefined') {
+        window.onAmazonLoginReady = amazonLoginReadyCallback;
+    } else {
+        amazonLoginReadyCallback();
     }
 
     // Widgets.js ready callback
@@ -62,13 +64,13 @@ define([
      */
     function setClientId(cid) {
         amazon.Login.setClientId(cid); //eslint-disable-line no-undef
-        amazonDefined(true);
     }
 
     /**
      * Log user out of amazon
      */
     function amazonLogout() {
+        $.mage.cookies.clear('amazon_Login_accessToken');
         $.ajax({
             url: url.build('amazon/logout'),
             context: this
@@ -109,22 +111,6 @@ define([
     }
 
     return {
-        /**
-         * Verify a user is logged into amazon
-         */
-        verifyAmazonLoggedIn: function () {
-            var defer = $.Deferred()
-            accessToken($.mage.cookies.get('amazon_Login_accessToken'));
-            if(accessToken()) {
-                defer.resolve(true);
-            } else {
-                defer.reject();
-            }
-            // jscs:enable requireCamelCaseOrUpperCaseIdentifiers
-
-            return defer.promise();
-        },
-
         /**
          * Log user out of Amazon
          */

@@ -18,11 +18,12 @@ define([
     'Magento_Customer/js/section-config',
     'Amazon_Payment/js/model/amazonPaymentConfig',
     'amazonCsrf',
+    'Magento_Checkout/js/model/full-screen-loader',
     'modernizr/modernizr',
     'amazonCore',
     'jquery/ui',
     'uiRegistry'
-], function ($, customerData, sectionConfig, amazonPaymentConfig, amazonCsrf) {
+], function ($, customerData, sectionConfig, amazonPaymentConfig, amazonCsrf, fullScreenLoader) {
     'use strict';
     var _this;
 
@@ -96,6 +97,7 @@ define([
                 if (sections) {
                     customerData.invalidate(sections);
                 }
+                $.mage.cookies.set('amazon_Login_accessToken', event.access_token);
                 window.location = _this.options.redirectUrl + '?access_token=' + event.access_token;
                 // jscs:enable requireCamelCaseOrUpperCaseIdentifiers
             },
@@ -150,7 +152,9 @@ define([
                      * Authorization callback
                      */
                     authorization: function () {
+                        fullScreenLoader.startLoader();
                         //eslint-disable-next-line no-undef
+                        amazon.Login.setUseCookie(true);
                         amazon.Login.authorize(_this._getLoginOptions(), _this._popupCallback());
                     }
                 });
