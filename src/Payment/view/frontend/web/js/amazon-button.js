@@ -22,7 +22,8 @@ define([
     'modernizr/modernizr',
     'amazonCore',
     'jquery/ui',
-    'uiRegistry'
+    'uiRegistry',
+    'mage/cookies'
 ], function ($, customerData, sectionConfig, amazonPaymentConfig, amazonCsrf, fullScreenLoader) {
     'use strict';
     var _this;

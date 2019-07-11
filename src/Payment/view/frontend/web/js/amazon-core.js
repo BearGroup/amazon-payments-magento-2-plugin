@@ -19,7 +19,8 @@ define([
     'mage/url',
     'amazonPaymentConfig',
     'amazonWidgetsLoader',
-    'jquery/jquery-storageapi'
+    'jquery/jquery-storageapi',
+    'mage/cookies'
 ], function ($, ko, url, amazonPaymentConfig) {
     'use strict';
 
