@@ -24,8 +24,7 @@ define([
 ], function ($, ko, url, amazonPaymentConfig) {
     'use strict';
 
-    var clientId = amazonPaymentConfig.getValue('clientId'),
-        amazonDefined = ko.observable(false),
+    var amazonDefined = ko.observable(false),
         amazonLoginError = ko.observable(false),
         accessToken = ko.observable(null),
         // Match region config to amazon.Login.Region
@@ -35,23 +34,20 @@ define([
 
     accessToken($.mage.cookies.get('amazon_Login_accessToken'));
 
-    var amazonLoginReadyCallback = function () {
-        setClientId(clientId);  //eslint-disable-line no-use-before-define
-        doLogoutOnFlagCookie(); //eslint-disable-line no-use-before-define
-
-        sandboxMode = amazonPaymentConfig.getValue('isSandboxEnabled', false);
-        amazon.Login.setSandboxMode(sandboxMode); //eslint-disable-line no-undef
-
-        region = regions[amazonPaymentConfig.getValue('region')];
-        amazon.Login.setRegion(region); //eslint-disable-line no-undef
+    var initAmazonLogin = function () {
+        amazon.Login.setClientId(amazonPaymentConfig.getValue('clientId')); //eslint-disable-line no-undef
+        amazon.Login.setSandboxMode(amazonPaymentConfig.getValue('isSandboxEnabled', false)); //eslint-disable-line no-undef
+        amazon.Login.setRegion(regions[amazonPaymentConfig.getValue('region')]); //eslint-disable-line no-undef
         amazon.Login.setUseCookie(true); //eslint-disable-line no-undef
+
+        doLogoutOnFlagCookie(); //eslint-disable-line no-use-before-define
         amazonDefined(true);
     };
 
     if (typeof amazon === 'undefined') {
-        window.onAmazonLoginReady = amazonLoginReadyCallback;
+        window.onAmazonLoginReady = initAmazonLogin;
     } else {
-        amazonLoginReadyCallback();
+        initAmazonLogin();
     }
 
     // Widgets.js ready callback
@@ -64,7 +60,6 @@ define([
      * @param {String} cid
      */
     function setClientId(cid) {
-        amazon.Login.setClientId(cid); //eslint-disable-line no-undef
     }
 
     /**
