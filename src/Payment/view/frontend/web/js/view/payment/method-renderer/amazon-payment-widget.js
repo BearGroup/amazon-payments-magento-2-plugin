@@ -12,6 +12,7 @@ define(
         'Amazon_Payment/js/action/place-order',
         'Magento_Checkout/js/action/get-totals',
         'Magento_Checkout/js/model/error-processor',
+        'Magento_Ui/js/model/messageList',
         'Magento_Checkout/js/model/address-converter',
         'Magento_Checkout/js/action/select-billing-address',
         'Magento_Checkout/js/model/payment/additional-validators',
@@ -32,6 +33,7 @@ define(
         placeOrderAction,
         getTotalsAction,
         errorProcessor,
+        messageList,
         addressConverter,
         selectBillingAddress,
         additionalValidators,
@@ -113,7 +115,15 @@ define(
                      * Error callback
                      */
                     onError: function (error) {
-                        errorProcessor.process(error);
+                        console.log('OffAmazonPayments.Widgets.Wallet', error.getErrorCode(), error.getErrorMessage());
+                        switch (error.getErrorCode()) {
+                            case 'BuyerSessionExpired':
+                                messageList.addErrorMessage({message: $.mage.__('Your Amazon session has expired.  Please sign in again by clicking the Amazon Pay Button.')});
+                                amazonStorage.amazonlogOut();
+                                break;
+                            default:
+                                errorProcessor.process(error);
+                        }
                     }
                 });
                 if (this.useMultiCurrency) {

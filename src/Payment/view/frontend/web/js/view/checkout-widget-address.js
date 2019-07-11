@@ -16,6 +16,7 @@ define(
         'mage/storage',
         'Magento_Checkout/js/model/full-screen-loader',
         'Magento_Checkout/js/model/error-processor',
+        'Magento_Ui/js/model/messageList',
         'Magento_Checkout/js/model/url-builder',
         'Magento_Checkout/js/checkout-data',
         'Magento_Checkout/js/model/checkout-data-resolver',
@@ -36,6 +37,7 @@ define(
         storage,
         fullScreenLoader,
         errorProcessor,
+        messageList,
         urlBuilder,
         checkoutData,
         checkoutDataResolver,
@@ -115,6 +117,14 @@ define(
                      */
                     onError: function (error) {
                         console.log('OffAmazonPayments.Widgets.AddressBook', error.getErrorCode(), error.getErrorMessage());
+                        switch (error.getErrorCode()) {
+                            case 'BuyerSessionExpired':
+                                messageList.addErrorMessage({message: $.mage.__('Your Amazon session has expired.  Please sign in again by clicking the Amazon Pay Button.')});
+                                amazonStorage.amazonlogOut();
+                                break;
+                            default:
+                                errorProcessor.process(error);
+                        }
                     }
                 }).bind(self.options.addressWidgetDOMId);
             },
