@@ -128,7 +128,9 @@ class CompleteCheckout extends Action
                         . 'Please try again, or use a different payment method.'
                     ));
             }
-            return $this->_redirect('checkout/cart');
+            $resultRedirect = $this->resultRedirectFactory->create();
+            $resultRedirect->setUrl($this->_url->getUrl('checkout').'#payment');
+            return $resultRedirect;
         } catch(\Exception $e) {
             $this->exceptionLogger->logException($e);
             throw $e;
