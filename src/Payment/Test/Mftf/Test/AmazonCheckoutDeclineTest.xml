@@ -95,13 +95,7 @@
         </actionGroup>
         <!--Decline Error Message-->
         <waitForText userInput="please choose another payment method" selector="{{AdminMessagesSection.errorMessage}}" stepKey="waitForText"/>        <!--Verify iframe wallet message-->
-        <!--Wait for redirect to cart-->
-        <wait time="5" stepKey="waitRedirect"/>
         <seeInCurrentUrl url="{{CheckoutCartPage.url}}" stepKey="assertUrl"/>
-        <waitForAjaxLoad stepKey="waitForAjaxLoad"/>
-        <!--Confirm logged out from Amazon by logging in (popup)-->
-        <click selector="{{AmazonCheckoutSection.cartPayButton}}" stepKey="clickAmazonCartButton"/>
-        <actionGroup ref="AmazonLoginPopupActionGroup" stepKey="AmazonLoginPopupActionGroup" />
     </test>
     <test name="AmazonCheckoutDeclineTransactionTimedOutInstant" extends="AmazonCheckoutAddProductDetail">
         <annotations>
