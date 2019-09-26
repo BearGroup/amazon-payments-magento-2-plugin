@@ -75,7 +75,8 @@ class AlexaPublicKeyId implements \Magento\Config\Model\Config\CommentInterface
 
         if (!$pubkeyid && $privkey) {
             $merchantId = $this->amazonConfig->getMerchantId();
-            $subject = rawurlencode('Request for Amazon Pay Public Key ID for ' . $merchantId);
+            $paymentRegion = strtoupper($this->amazonConfig->getPaymentRegion());
+            $subject = rawurlencode(sprintf('Request for Amazon Pay Public Key ID for %s (%s)', $merchantId, $paymentRegion));
             $body = rawurlencode("Merchant ID: $merchantId\n\nPublic Key:\n\n$pubkey");
             $comment = __(
                 'Please <a href="%1">contact</a> Amazon Pay to receive the Public Key ID.',
