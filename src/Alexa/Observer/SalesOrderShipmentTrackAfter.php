@@ -26,9 +26,9 @@ class SalesOrderShipmentTrackAfter implements ObserverInterface
     private $alexaConfig;
 
     /**
-     * @var \Amazon\Core\Model\AmazonConfig
+     * @var \Amazon\Core\Helper\Data
      */
-    private $amazonConfig;
+    private $coreHelper;
 
     /**
      * @var \Amazon\Alexa\Model\Alexa
@@ -38,16 +38,16 @@ class SalesOrderShipmentTrackAfter implements ObserverInterface
     /**
      * SalesOrderShipmentTrackAfter constructor.
      * @param \Amazon\Alexa\Model\AlexaConfig $alexaConfig
-     * @param \Amazon\Core\Model\AmazonConfig $amazonConfig
+     * @param \Amazon\Core\Helper\Data
      * @param \Amazon\Alexa\Model\Alexa $alexaModel
      */
     public function __construct(
         \Amazon\Alexa\Model\AlexaConfig $alexaConfig,
-        \Amazon\Core\Model\AmazonConfig $amazonConfig,
+        \Amazon\Core\Helper\Data $coreHelper,
         \Amazon\Alexa\Model\Alexa $alexaModel
     ) {
         $this->alexaConfig  = $alexaConfig;
-        $this->amazonConfig = $amazonConfig;
+        $this->coreHelper   = $coreHelper;
         $this->alexaModel   = $alexaModel;
     }
 
@@ -56,7 +56,7 @@ class SalesOrderShipmentTrackAfter implements ObserverInterface
      */
     public function execute(Observer $observer)
     {
-        if (!$this->amazonConfig->isPwaEnabled() || !$this->alexaConfig->isAlexaEnabled()) {
+        if (!$this->coreHelper->isPwaEnabled() || !$this->alexaConfig->isAlexaEnabled()) {
             return;
         }
 

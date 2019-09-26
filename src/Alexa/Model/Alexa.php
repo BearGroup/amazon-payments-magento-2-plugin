@@ -31,6 +31,11 @@ class Alexa
     private $amazonConfig;
 
     /**
+     * @var \Amazon\Core\Helper\Data
+     */
+    private $coreHelper;
+
+    /**
      * @var \Amazon\Core\Logger\AlexaLogger
      */
     private $alexaLogger;
@@ -68,6 +73,7 @@ class Alexa
     public function __construct(
         AlexaConfig $alexaConfig,
         \Amazon\Core\Model\AmazonConfig $amazonConfig,
+        \Amazon\Core\Helper\Data $coreHelper,
         \Amazon\Alexa\Logger\AlexaLogger $alexaLogger,
         \Amazon\Alexa\Model\AlexaCarrierFactory $carrierFactory,
         \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig,
@@ -111,7 +117,7 @@ class Alexa
 
         if (isset($result['status'], $result['response'])) {
 
-            if ($this->amazonConfig->isLoggingEnabled()) {
+            if ($this->coreHelper->isLoggingEnabled()) {
                 // @codingStandardsIgnoreStart
                 $this->alexaLogger->debug(print_r($result, true));
                 // @codingStandardsIgnoreEnd
@@ -145,7 +151,7 @@ class Alexa
                     $errorMessage = __('Please add the missing Private/Public key value in the Alexa Delivery Notification settings in Amazon Pay to enable Delivery Notifications.');
                 }
 
-                if ($this->amazonConfig->isLoggingEnabled()) {
+                if ($this->coreHelper->isLoggingEnabled()) {
                     $this->alexaLogger->debug($errorMessage);
                 }
 
@@ -177,7 +183,7 @@ class Alexa
             'public_key_id' => $publicKeyId,
             'private_key'   => $privateKey,
             'sandbox'       => false, // deliveryTrackers not available in sandbox mode
-            'region'        => $this->amazonConfig->getRegion()
+            'region'        => $this->amazonConfig->getPaymentRegion()
         ];
 
         $payload = [
