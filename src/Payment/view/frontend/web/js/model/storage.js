@@ -49,7 +49,8 @@ define(
             isLoginRedirectPage = $('body').hasClass('amazon-login-login-processauthhash'),
             amazonCustomerEmail = ko.computed(function () {
                 // jscs:disable requireCamelCaseOrUpperCaseIdentifiers
-                if (window.checkoutConfig.hasOwnProperty('amazonLogin') &&
+                if (window.checkoutConfig &&
+                    window.checkoutConfig.hasOwnProperty('amazonLogin') &&
                     typeof window.checkoutConfig.amazonLogin.amazon_customer_email === 'string'
                 ) {
                     return window.checkoutConfig.amazonLogin.amazon_customer_email;
