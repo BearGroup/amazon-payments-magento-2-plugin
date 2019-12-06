@@ -17,16 +17,25 @@
 namespace Amazon\Core\Controller\Simplepath;
 
 use Amazon\Core\Logger\ExceptionLogger;
-use Magento\Framework\App\CsrfAwareActionInterface;
 use Magento\Framework\App\Request\InvalidRequestException;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\App\ObjectManager;
 
 /**
+ * CsrfAwareActionInterface was introduced in Magento 2.3.0
+ * For backward compatibility, Listener should implement CsrfAwareActionInterface only if it exists.
+ */
+if (interface_exists('Magento\Framework\App\CsrfAwareActionInterface')) {
+    interface SimplePathListenerActionInterface extends Magento\Framework\App\CsrfAwareActionInterface {}
+} else {
+    interface SimplePathListenerActionInterface {}
+}
+
+/**
  * Class Listener
  * Retrieves entered keys from Amazon Pay popup
  */
-class Listener extends \Magento\Framework\App\Action\Action implements CsrfAwareActionInterface
+class Listener extends \Magento\Framework\App\Action\Action implements SimplePathListenerActionInterface
 {
 
     // @var \Magento\Framework\Controller\Result\JsonFactory
