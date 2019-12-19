@@ -22,6 +22,12 @@
             <resource ref="anonymous" />
         </resources>
     </route>
+    <route url="/V1/amazon-v2-billing-address/:amazonCheckoutSessionId" method="PUT">
+        <service class="Amazon\PayV2\Api\AddressManagementInterface" method="getBillingAddress"/>
+        <resources>
+            <resource ref="anonymous" />
+        </resources>
+    </route>
     <route url="/V1/amazon-v2-complete-checkout/:amazonCheckoutSessionId" method="PUT">
         <service class="Amazon\PayV2\Api\CheckoutSessionManagementInterface" method="completeCheckout"/>
         <resources>

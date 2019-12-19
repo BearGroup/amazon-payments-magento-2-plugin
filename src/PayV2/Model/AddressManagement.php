@@ -141,6 +141,50 @@ class AddressManagement implements \Amazon\PayV2\Api\AddressManagementInterface
         }
     }
 
+    /**
+     * {@inheritdoc}
+     */
+    public function getBillingAddress($amazonCheckoutSessionId)
+    {
+        if (!$this->amazonConfig->isEnabled()) {
+            return false;
+        }
+
+        try {
+            $response = $this->amazonAdapter->getCheckoutSession(
+                $this->storeManager->getStore()->getId(),
+                $amazonCheckoutSessionId
+            );
+
+            if (isset($response['paymentPreferences']) && isset($response['paymentPreferences'][0]) && isset($response['paymentPreferences'][0]['billingAddress'])) {
+                $billingAddress = $response['paymentPreferences'][0]['billingAddress'];
+                $billingAddress['state'] = $billingAddress['stateOrRegion'];
+
+                $address = array_combine(
+                    array_map('ucfirst', array_keys($billingAddress)),
+                    array_values($billingAddress)
+                );
+
+                $address = $this->convertToMagentoAddress($address, false);
+                $address[0]['email'] = $response['buyer']['email'];
+
+                return $address;
+            } else {
+                return $this->getShippingAddress();
+            }
+
+        } catch (SessionException $e) {
+            throw $e;
+        } catch (WebapiException $e) {
+            throw $e;
+        } catch (ValidatorException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            $this->logger->error($e);
+            $this->throwUnknownErrorException();
+        }
+    }
+
     protected function throwUnknownErrorException()
     {
         throw new WebapiException(
