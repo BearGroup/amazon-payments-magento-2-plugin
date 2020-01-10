@@ -18,6 +18,7 @@ namespace Amazon\Payment\Model;
 use Amazon\Core\Client\ClientFactoryInterface;
 use Amazon\Core\Exception\AmazonServiceUnavailableException;
 use Amazon\Core\Helper\Data as CoreHelper;
+use Amazon\Core\Model\AmazonConfig;
 use Amazon\Payment\Gateway\Config\Config;
 use Amazon\Payment\Api\Data\QuoteLinkInterfaceFactory;
 use Amazon\Payment\Api\OrderInformationManagementInterface;
@@ -81,6 +82,11 @@ class OrderInformationManagement implements OrderInformationManagementInterface
     private $productMetadata;
 
     /**
+     * @var AmazonConfig
+     */
+    private $amazonConfig;
+
+    /**
      * OrderInformationManagement constructor.
      * @param Session $session
      * @param ClientFactoryInterface $clientFactory
@@ -90,6 +96,7 @@ class OrderInformationManagement implements OrderInformationManagementInterface
      * @param QuoteLinkInterfaceFactory $quoteLinkFactory
      * @param LoggerInterface $logger
      * @param ProductMetadata $productMetadata
+     * @param AmazonConfig $amazonConfig
      */
     public function __construct(
         Session $session,
@@ -100,7 +107,8 @@ class OrderInformationManagement implements OrderInformationManagementInterface
         QuoteLinkInterfaceFactory $quoteLinkFactory,
         LoggerInterface $logger,
         ProductMetadata $productMetadata,
-        UrlInterface $urlBuilder = null
+        UrlInterface $urlBuilder = null,
+        AmazonConfig $amazonConfig
     ) {
         $this->session                              = $session;
         $this->clientFactory                        = $clientFactory;
@@ -111,6 +119,7 @@ class OrderInformationManagement implements OrderInformationManagementInterface
         $this->logger                               = $logger;
         $this->productMetadata                      = $productMetadata;
         $this->urlBuilder = $urlBuilder ?: ObjectManager::getInstance()->get(UrlInterface::class);
+        $this->amazonConfig = $amazonConfig ?: ObjectManager::getInstance()->get(AmazonConfig::class);
     }
 
     /**
@@ -161,7 +170,7 @@ class OrderInformationManagement implements OrderInformationManagementInterface
 
     protected function validateCurrency($code)
     {
-        if ($this->coreHelper->getCurrencyCode() !== $code) {
+        if (!$this->amazonConfig->useMultiCurrency() && $this->coreHelper->getCurrencyCode() !== $code) {
             throw new LocalizedException(__('The currency selected is not supported by Amazon Pay'));
         }
     }
