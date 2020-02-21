@@ -56,7 +56,7 @@ define(
 
             fullScreenLoader.startLoader();
             customerData.invalidate(['cart']);
-            if(amazonPaymentConfig.getValue('scaRegions').indexOf(amazonPaymentConfig.getValue('region')) !== -1) {
+            if(amazonPaymentConfig.getValue('scaRegions', []).indexOf(amazonPaymentConfig.getValue('region')) !== -1) {
                 console.log('SCA enabled for region: ' + amazonPaymentConfig.getValue('region'));
                 return OffAmazonPayments.initConfirmationFlow(amazonPaymentConfig.getValue('merchantId'), amazonStorage.getOrderReference(), function(confirmationFlow) {
                     return storage.post(

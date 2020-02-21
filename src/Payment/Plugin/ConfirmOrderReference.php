@@ -93,11 +93,6 @@ class ConfirmOrderReference
                 if (!$this->checkoutSession->getData('is_amazon_suspended')) {
                     $this->orderInformationManagement->saveOrderInformation($amazonOrderReferenceId);
                 }
-
-                $this->orderInformationManagement->confirmOrderReference(
-                    $amazonOrderReferenceId,
-                    $quote->getStoreId()
-                );
             }
         }
 
