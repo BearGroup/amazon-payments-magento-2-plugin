@@ -37,7 +37,7 @@ class AddAmazonButton implements ObserverInterface
      * @param ShortcutFactory $shortcutFactory
      */
     public function __construct(
-        Data $coreHelper,
+        NoSuchData $coreHelper,
         ShortcutFactory $shortcutFactory
     ) {
         $this->coreHelper = $coreHelper;
