@@ -9,7 +9,7 @@
     <update handle="customer_account"/>
     <body>
         <referenceContainer name="form.additional.info">
-            <block class="Amazon\Payment\Block\Widget\ResetPassword" name="amazon.pay.password.reset" before="-" template="Amazon_Payment::widget/resetpassword.phtml" cacheable="false" />
+            <block class="Amazon\Payment\Block\Widget\ResetPassword" name="amazon.pay.password.reset" before="-" template="Amazon_Payment::widget/resetpassword.phtml" ifconfig="payment/amazon_payment/lwa_enabled" cacheable="false" />
         </referenceContainer>
     </body>
 </page>
