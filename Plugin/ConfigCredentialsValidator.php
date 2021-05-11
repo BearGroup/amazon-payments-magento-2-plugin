@@ -28,6 +28,7 @@ class ConfigCredentialsValidator
     const XML_PATH_PRIVATE_KEY_PEM = 'groups/amazon_pay/groups/credentials/fields/private_key_pem/value';
     const XML_PATH_PRIVATE_KEY_TEXT = 'groups/amazon_pay/groups/credentials/fields/private_key_text/value';
     const XML_PATH_PRIVATE_KEY_SELECTED = 'groups/amazon_pay/groups/credentials/fields/private_key_selected/value';
+    const XML_PATH_PRIVATE_KEY_SELECTOR = 'groups/amazon_pay/groups/credentials/fields/private_key_selector/value';
     const XML_PATH_PUBLIC_KEY_ID = 'groups/amazon_pay/groups/credentials/fields/public_key_id/value';
     const XML_PATH_STORE_ID = 'groups/amazon_pay/groups/credentials/fields/store_id/value';
     const XML_PATH_PAYMENT_REGION = 'groups/amazon_pay/groups/credentials/fields/payment_region/value';
@@ -237,6 +238,15 @@ class ConfigCredentialsValidator
 
     /**
      * @param Config $subject
+     * @param string $path
+     */
+    private function isInherited($subject, $path)
+    {
+        return $subject->getData(str_replace('value', 'inherit', $path));
+    }
+
+    /**
+     * @param Config $subject
      */
     private function readPrivateKey($subject)
     {
@@ -247,8 +257,11 @@ class ConfigCredentialsValidator
         $privateKeyArray['name'] = '';
 
         // check for inherited value
-        if ($subject->getData(str_replace('value', 'inherit', self::XML_PATH_PRIVATE_KEY_TEXT)) &&
-            $subject->getData(str_replace('value', 'inherit', self::XML_PATH_PRIVATE_KEY_SELECTED))
+        if ($this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_SELECTOR) ||
+            ($subject->getData(self::XML_PATH_PRIVATE_KEY_SELECTED) == 'pem' &&
+            $this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_PEM)) ||
+            ($subject->getData(self::XML_PATH_PRIVATE_KEY_SELECTED) == 'text' &&
+            $this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_TEXT))
         ) {
             return $this->amazonConfig->getPrivateKey(
                 $this->getParentScope($scope),
