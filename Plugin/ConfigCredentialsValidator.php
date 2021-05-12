@@ -257,11 +257,16 @@ class ConfigCredentialsValidator
         $privateKeyArray['name'] = '';
 
         // check for inherited value
-        if ($this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_SELECTOR) ||
-            ($subject->getData(self::XML_PATH_PRIVATE_KEY_SELECTED) == 'pem' &&
-            $this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_PEM)) ||
-            ($subject->getData(self::XML_PATH_PRIVATE_KEY_SELECTED) == 'text' &&
-            $this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_TEXT))
+        $keyMethod = $subject->getData(self::XML_PATH_PRIVATE_KEY_SELECTED);
+        if ($this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_SELECTED)) {
+            $keyMethod = $this->amazonConfig->getPrivateKeySelected(
+                $this->getParentScope($scope),
+                $this->getParentScopeCode($subject->getStore())
+            );
+        }
+
+        if (($keyMethod == 'pem' && $this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_PEM)) ||
+            ($keyMethod == 'text' && $this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_TEXT))
         ) {
             return $this->amazonConfig->getPrivateKey(
                 $this->getParentScope($scope),

@@ -95,12 +95,6 @@ require(['jquery', 'domReady!'], function ($) {
         showPrivateKey($(this), $(this).val() == 1);
     });
 
-    // if anything with the pem or text inherit changes, make sure the selector is not inheriting
-    $('#payment_us_amazon_pay_credentials_private_key_pem_inherit,' +
-        '#payment_us_amazon_pay_credentials_private_key_text_inherit').click(function() {
-        $('#payment_us_amazon_pay_credentials_private_key_selector_inherit').prop('checked', true).click();
-    })
-
     function showPrivateKey(field, enabled) {
         if (enabled) {
             let value = $('#payment_us_amazon_pay_credentials_private_key_selected').val();
