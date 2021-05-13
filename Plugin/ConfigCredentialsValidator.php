@@ -264,6 +264,10 @@ class ConfigCredentialsValidator
                 $this->getParentScopeCode($subject->getStore())
             );
         }
+        
+        if (!in_array($keyMethod, ['text', 'pem'])) {
+            $keyMethod = 'text';
+        }
 
         if (($keyMethod == 'pem' && $this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_PEM)) ||
             ($keyMethod == 'text' && $this->isInherited($subject, self::XML_PATH_PRIVATE_KEY_TEXT))
