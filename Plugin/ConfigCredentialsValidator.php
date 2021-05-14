@@ -264,7 +264,7 @@ class ConfigCredentialsValidator
                 $this->getParentScopeCode($subject->getStore())
             );
         }
-        
+
         if (!in_array($keyMethod, ['text', 'pem'])) {
             $keyMethod = 'text';
         }
@@ -397,9 +397,6 @@ class ConfigCredentialsValidator
         } catch (\Exception $e) {
             $this->setDataByPath($subject, self::XML_PATH_ACTIVE_INHERIT, false);
             $this->setDataByPath($subject, self::XML_PATH_ACTIVE, false);
-            $this->setDataByPath($subject, self::XML_PATH_PRIVATE_KEY_PEM, false);
-            $this->setDataByPath($subject, self::XML_PATH_PRIVATE_KEY_TEXT, false);
-            $this->setDataByPath($subject, self::XML_PATH_PRIVATE_KEY_SELECTED, false);
             $this->messageManager->addErrorMessage(__('Failed to enable Amazon Pay: %1', $e->getMessage()));
         }
         return null;
