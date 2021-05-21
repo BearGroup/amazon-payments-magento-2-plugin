@@ -6,3 +6,8 @@
 .complex.amazon-pay-section .amazon-payment-byline { display: inline-block; vertical-align: middle; width: 50%; }
 .amazon-pay-section.section-config.active > .admin__collapsible-block + input + fieldset { margin-left: 40px; }
 
+.apsp-getstarted { display:inline-block; padding:1em 0em; }
+.apsp-or { display:inline-block; }
+#amazon_simplepath_back { display:none; margin-bottom:1em; margin-top:-0.5em; }
+#amazon_simplepath td.creds { width:10%; }
+.simplepath-wrapper-set.active .admin__collapsible-block { display:none; }
