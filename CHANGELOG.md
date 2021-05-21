@@ -1,5 +1,22 @@
 # Change Log
 
+## 5.4.0
+* Fixed credential validation when inheriting from parent scope
+* Fixed issue to properly handle when Amazon Pay returns empty buyer ID
+* Fixed issue with using Alexa notifications and custom carriers
+* Fixed issue where a quote could be submitted to Magento multiple times
+
+## 5.3.0
+* Support for OneStepCheckout v1.2.047+
+* Added sort order to payment method config
+* Changed the REST requests to pass in the Amazon Checkout Session ID instead of the cart ID
+* Fixed bug where multiple url parameters would cause reloading in checkout
+* Fixed bug with the way serializer was called in Alexa notification processing
+* Fixed incorrect exception messaging in Alexa notification
+* Removed quote to Amazon Session mapping table
+* Updated how javascript customizations are implemented
+* Updated the cart and success redirect behavior to be configurable
+
 ## 5.2.0
 * Added Sign in with Amazon to the authentication modal
 * Fixed bug where pressing enter on a text input config field would open the file selector for Amazon Private Key

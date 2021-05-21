@@ -393,7 +393,6 @@ class AmazonConfig
      *
      * @param string $scope
      * @param null $scopeCode
-     * @param null $store
      *
      * @return string
      */
@@ -407,11 +406,27 @@ class AmazonConfig
     }
 
     /**
+     * Return Private Key Selected method (text or pem)
+     *
+     * @param string $scope
+     * @param null $scopeCode
+     *
+     * @return string
+     */
+    public function getPrivateKeySelected($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
+    {
+        return $this->scopeConfig->getValue(
+            'payment/amazon_payment_v2/private_key_selected',
+            $scope,
+            $scopeCode
+        );
+    }
+
+    /**
      * Return Public Key
      *
      * @param string $scope
      * @param null $scopeCode
-     * @param null $store
      *
      * @return string
      */
@@ -429,7 +444,6 @@ class AmazonConfig
      *
      * @param string $scope
      * @param null $scopeCode
-     * @param null $store
      *
      * @return string
      */
@@ -507,7 +521,18 @@ class AmazonConfig
     /**
      * @return string
      */
-    public function getCheckoutReviewUrl($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
+    public function getCheckoutReviewReturnUrl($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
+    {
+        return $this->storeManager->getStore()->getUrl(
+            'amazon_pay/login/checkout',
+            ['_forced_secure' => true]
+        );
+    }
+
+    /**
+     * @return string
+     */
+    public function getCheckoutReviewUrlPath($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
     {
         $result = $this->scopeConfig->getValue(
             'payment/amazon_payment_v2/checkout_review_url',
@@ -515,10 +540,7 @@ class AmazonConfig
             $scopeCode
         );
         if (empty($result)) {
-            $result = $this->storeManager->getStore()->getUrl(
-                'amazon_pay/login/checkout',
-                ['_forced_secure' => true]
-            );
+            $result = 'checkout';
         }
         return $result;
     }
@@ -526,7 +548,7 @@ class AmazonConfig
     /**
      * @return string
      */
-    public function getCheckoutResultUrl($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
+    public function getCheckoutResultUrlPath($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
     {
         $result = $this->scopeConfig->getValue(
             'payment/amazon_payment_v2/checkout_result_url',
@@ -534,10 +556,7 @@ class AmazonConfig
             $scopeCode
         );
         if (empty($result)) {
-            $result = $this->storeManager->getStore()->getUrl(
-                'amazon_pay/checkout/completeSession',
-                ['_forced_secure' => true]
-            );
+            $result = 'checkout/onepage/success';
         }
         return $result;
     }
