@@ -231,16 +231,26 @@ class AutoKeyExchange
         $keys = $rsa->createKey(2048);
         $encrypt = $this->encryptor->encrypt($keys['privatekey']);
 
-        $authToken = $this->mathRandom->getUniqueHash();
-
         $this->config
             ->saveConfig(self::CONFIG_XML_PATH_PUBLIC_KEY, $keys['publickey'], 'default', 0)
-            ->saveConfig(self::CONFIG_XML_PATH_PRIVATE_KEY, $encrypt, 'default', 0)
-            ->saveConfig(self::CONFIG_XML_PATH_AUTH_TOKEN, $authToken, 'default', 0);
+            ->saveConfig(self::CONFIG_XML_PATH_PRIVATE_KEY, $encrypt, 'default', 0);
 
         $this->cacheManager->clean([CacheTypeConfig::TYPE_IDENTIFIER]);
 
         return $keys;
+    }
+
+    /**
+     * Generate and save auth token
+     *
+     * @return string
+     * @throws \Magento\Framework\Exception\LocalizedException
+     */
+    public function generateAuthToken()
+    {
+        $authToken = $this->mathRandom->getUniqueHash();
+        $this->config->saveConfig(self::CONFIG_XML_PATH_AUTH_TOKEN, $authToken, 'default', 0);
+        return $authToken;
     }
 
     /**
@@ -380,6 +390,10 @@ class AutoKeyExchange
                 $this->_scopeId
             );
         }
+        $this->config->saveConfig(
+            'payment/amazon_payment/sandbox',
+            '0'
+        );
 
         if ($autoEnable) {
             $this->autoEnable();
@@ -409,11 +423,14 @@ class AutoKeyExchange
         $baseUrl = $this->storeManager->getStore($this->_storeId)->getBaseUrl(UrlInterface::URL_TYPE_WEB, true);
         $baseUrl = str_replace('http:', 'https:', $baseUrl);
         $authToken = $this->getConfig(self::CONFIG_XML_PATH_AUTH_TOKEN, 'default', 0);
+        if (empty($authToken)) {
+            $authToken = $this->generateAuthToken();
+        }
         $params  = 'website=' . $this->_websiteId .
             '&store=' . $this->_storeId .
             '&scope=' . $this->_scope .
             '&auth=' . $authToken;
-        return $baseUrl . 'amazon_pay/autokeyexchange/listener?' . urlencode($params);
+        return $baseUrl . 'amazon_pay/autokeyexchange/listener?' . $params;
     }
 
     /**
