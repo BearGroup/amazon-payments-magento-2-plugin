@@ -26,11 +26,6 @@ use Magento\Payment\Helper\Formatter;
 use \phpseclib\Crypt\RSA;
 use \phpseclib\Crypt\AES;
 
-/**
- * // @TODO: remove this?
- * @  SuppressWarnings(PHPMD.CouplingBetweenObjects)
- *
- */
 class AutoKeyExchange
 {
 
@@ -334,7 +329,7 @@ class AutoKeyExchange
         } catch (\Exception $e) {
             $this->logger->critical($e);
             $this->messageManager->addError(__($e->getMessage()));
-            $link = 'https://payments.amazon.com/help/202024240'; // @TODO: update for magento 2?
+            $link = 'https://amzn.github.io/amazon-payments-magento-2-plugin/configuration.html';
             $this->messageManager->addError(
                 __(
                     "If you're experiencing consistent errors with transferring keys, " .
@@ -446,8 +441,6 @@ class AutoKeyExchange
         foreach ($stores as $store) {
             // Get secure base URL
             if ($baseUrl = $store->getBaseUrl(UrlInterface::URL_TYPE_WEB, true)) {
-                $value = $baseUrl . 'amazon/login/processAuthHash/';  // @TODO: wat?
-                $urlArray[] = $value;
                 // phpcs:ignore Magento2.Functions.DiscouragedFunction
                 $url = parse_url($baseUrl);
                 if (isset($url['host'])) {
@@ -463,7 +456,6 @@ class AutoKeyExchange
                 }
             }
         }
-        $urlArray = array_unique($urlArray);
         $baseUrls = array_unique($baseUrls);
 
         $moduleVersion = $this->amazonHelper->getModuleVersion();
@@ -479,12 +471,12 @@ class AutoKeyExchange
             'locale'      => $this->getConfig('general/locale/code'),
             'source'      => 'SPPL',
             'spId'        => isset($this->_spIds[$currency]) ? $this->_spIds[$currency] : '',
-            'onboardingVersion' => '2',
+            'onboardingVersion'           => '2',
             'spSoftwareVersion'           => $this->productMeta->getVersion(),
             'spAmazonPluginVersion'       => $moduleVersion,
             'merchantStoreDescription'    => $this->getConfig('general/store_information/name'),
             'merchantLoginDomains[]'      => $baseUrls,
-            'merchantLoginRedirectURLs[]' => $urlArray,
+            'merchantPrivacyNoticeURL'    => $baseUrls[0] . '/privacy-policy-cookie-restriction-mode',
         ];
     }
 
@@ -504,7 +496,7 @@ class AutoKeyExchange
         $currency = $this->getCurrency();
 
         $region = null;
-        if ($currency) { // @TODO: refactor to be more clear
+        if ($currency) {
             $region = isset($this->_mapCurrencyRegion[$currency]) ?
                 strtoupper($this->_mapCurrencyRegion[$currency]) :
                 'DE';
@@ -525,7 +517,7 @@ class AutoKeyExchange
         $currency = $this->getConfig('currency/options/default');
         $isCurrencyValid = isset($this->_mapCurrencyRegion[$currency]);
         if (!$isCurrencyValid) {
-            if ($this->amazonConfig->isActive($this->_scope, $this->_scopeId)) { // @TODO: check what this is doing
+            if ($this->amazonConfig->isActive($this->_scope, $this->_scopeId)) {
                 $isCurrencyValid = $this->amazonConfig->canUseCurrency($currency, $this->_scope, $this->_scopeId);
             } else {
                 $isCurrencyValid = in_array(
@@ -562,16 +554,12 @@ class AutoKeyExchange
      */
     public function getJsonAmazonAKEConfig()
     {
-        // @TODO: review which of these are required
         return [
             'co'            => $this->getCountry(),
-            'region'        => $this->getRegion(),
             'currency'      => $this->getCurrency(),
             'amazonUrl'     => $this->getEndpointRegister(),
             'pollUrl'       => $this->backendUrl->getUrl('amazon_pay/pay/autoKeyExchangePoll'),
             'resetAKEUrl'   => $this->backendUrl->getUrl('amazon_pay/pay/resetAutoKey'),
-            'isSecure'      => (int) ($this->request->isSecure()),
-            'hasOpenssl'    => (int) (extension_loaded('openssl')),
             'formParams'    => $this->getFormParams(),
             'isMultiCurrencyRegion' => (int) $this->amazonConfig->isMulticurrencyRegion($this->_scope, $this->_scopeId),
         ];

@@ -52,8 +52,6 @@ define(
                     self.$amazonFields = $('#payment_' + self.getCountry() + '_' + self.selector + ' .form-list');
                     self.$amazonCredentialsHeader = $('#payment_' + self.getCountry() + '_' + self.selector
                         + '_credentials-head');
-                    // self.$amazonCredentialJson = $('#payment_' + self.getCountry() + '_' + self.selector
-                    //     + '_credentials_credentials_json');
                     self.$amazonMerchantId = $('#payment_' + self.getCountry() + '_' + self.selector
                         + '_credentials_merchant_id_v2');
                     self.$amazonAutoKeyExchangeBack = $(self.apAutoKeyExchangeBackSelector);
@@ -142,11 +140,7 @@ define(
                 setupWindowLaunch: function () {
                     var self = this,
                         heights = [660, 720, 810, 900],
-                        popupWidth = this.getCountry() !== 'us' ? 768 : 1050, popupHeight = heights[0],
-                        region = self.region,
-                        elCheckDefault = $('#payment_' + self.getCountry()
-                            + '_amazon_pay_credentials_payment_region_inherit:checked'),
-                        elRegion = $('payment_' + self.getCountry() + '_amazon_pay_credentials_payment_region');
+                        popupWidth = this.getCountry() !== 'us' ? 768 : 1050, popupHeight = heights[0];
 
                     for (var i in heights) {
                         if (heights.hasOwnProperty(i)) {
@@ -161,31 +155,6 @@ define(
 
                     // begin polling for feedback
                     pollTimer = setTimeout(self.pollForKeys(self), self.pollInterval);
-
-                    // Save JSON
-                    $('#save-json').click(function (e) {
-                        e.stop();
-                        var json = $('#json-import').value;
-
-                        if (!json || !json.isJSON()) {
-                            return;
-                        }
-                        elJson.value = json;
-                        $('#save').click();
-                    });
-
-                    // Autoset payment region (for EU/UK)
-                    if (self.region.indexOf('eu') !== -1) {
-                        region = 'de';
-                    }
-
-                    if (elCheckDefault && elCheckDefault.length) {
-                        elCheckDefault[0].click();
-                    }
-
-                    if (elRegion) {
-                        elRegion.value = region;
-                    }
                 },
 
                 /**
