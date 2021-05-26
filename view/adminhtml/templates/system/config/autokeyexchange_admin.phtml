@@ -21,10 +21,10 @@
 
 
 <div data-mage-init='{
-        "Amazon_Pay/js/autokeyexchange": <?php echo $block->escapeHtml($block->getJsonConfig()) ?> }'
-     id="amazon_simplepath">
-    <?php if (!$block->getCurrency()) : // SimplePath not supported ?>
-        <div id="simplepath_unsported">
+        "Amazon_Pay/js/autokeyexchange": <?= $block->escapeHtml($block->getJsonConfig()) ?> }'
+     id="amazon_autokeyexchange">
+    <?php if (!$block->getCurrency()): // Auto Key Exchange not supported ?>
+        <div id="autokeyexchange_unsupported">
             <?= $block->escapeHtml(__('An unsupported currency is currently selected. ' .
                 'Please review our configuration guide.')); ?>
             <span class="note">
@@ -34,11 +34,12 @@
             </span>
         </div>
 
-    <?php else : ?>
-        <div id="simplepath_hint">
+    <?php else: ?>
+        <div id="autokeyexchange-hint">
             <?= $block->escapeHtml(
                 __(
-                    'You will be registering/configuring for a %1 account based on the base currency of your shop (%2).',
+                    'You will be registering/configuring for a %1 account based on the display ' .
+                    'currency of your scope (%2).',
                     $block->getRegion(),
                     $block->getCurrency()
                 )
@@ -50,14 +51,14 @@
             </span>
         </div>
 
-        <span class="apsp-getstarted">
+        <span class="apake-getstarted">
           <button>
-              <span><?= $block->escapeHtml(__('Get started with account registration')); ?></span>
+              <span><?= $block->escapeHtml(__('Initiate account registration/configuration')); ?></span>
           </button>
         </span>
-        <span class="apsp-or">
+        <span class="apake-or">
         &nbsp; <?= $block->escapeHtml(__('or')); ?> &nbsp;
-          <a href="#" id="simplepath-skip">
+          <a href="#" id="autokeyexchange-skip">
             <?= $block->escapeHtml(__("I've already setup Amazon Pay, I want to edit my settings")); ?>
           </a>
         </span>
@@ -71,6 +72,6 @@
     <?php endif; ?>
 </div>
 
-<div id="amazon_simplepath_back">
+<div id="amazon_autokeyexchange_back">
     <a href="#">&laquo; <?= $block->escapeHtml(__('Back to register or connect an account')); ?></a>
 </div>

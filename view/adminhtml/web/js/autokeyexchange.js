@@ -31,14 +31,14 @@ define(
                 defaults: {
                     $amazonFields: null,
                     $amazonCredentialJson: null,
-                    $amazonSpBack: null,
+                    $amazonAutoKeyExchangeBack: null,
                     $amazonMerchantId: null,
                     selector: 'amazon_pay',
                     $container: null,
                     pollInterval: 1500,
                     $form: null,
-                    apSimplePathSelector: '#amazon_simplepath',
-                    apSimplePathBackSelector: '#amazon_simplepath_back',
+                    apAutoKeyExchangeSelector: '#amazon_autokeyexchange',
+                    apAutoKeyExchangeBackSelector: '#amazon_autokeyexchange_back',
                 },
 
                 /**
@@ -48,16 +48,16 @@ define(
                 initObservable: function () {
                     var self = this;
 
-                    self.$amazonSimplepath = $(self.apSimplePathSelector);
+                    self.$amazonAutoKeyExchange = $(self.apAutoKeyExchangeSelector);
                     self.$amazonFields = $('#payment_' + self.getCountry() + '_' + self.selector + ' .form-list');
                     self.$amazonCredentialsHeader = $('#payment_' + self.getCountry() + '_' + self.selector
                         + '_credentials-head');
                     // self.$amazonCredentialJson = $('#payment_' + self.getCountry() + '_' + self.selector
                     //     + '_credentials_credentials_json');
                     self.$amazonMerchantId = $('#payment_' + self.getCountry() + '_' + self.selector
-                        + '_credentials_merchant_id_v2').val();
-                    self.$amazonSpBack = $(self.apSimplePathBackSelector);
-                    self.$container = $(self.apSimplePathSelector);
+                        + '_credentials_merchant_id_v2');
+                    self.$amazonAutoKeyExchangeBack = $(self.apAutoKeyExchangeBackSelector);
+                    self.$container = $(self.apAutoKeyExchangeSelector);
 
                     if (this.isMultiCurrencyRegion) {
                         $('#row_payment_' + self.getCountry() + '_amazon_pay_options_multicurrency').show();
@@ -68,16 +68,16 @@ define(
                         $('#row_payment_other_amazon_pay_options_multicurrency').hide();
                     }
 
-                    // @TODO: adjust to work with the show/hiding of the fields?
-                    // if (self.$amazonMerchantId) {
-                    //     self.hideAmazonConfig();
-                    // }
-                    // else {
-                    //     self.showAmazonConfig();
-                    // }
+                    if (self.$amazonMerchantId.val()) {
+                        this.$amazonAutoKeyExchange.hide();
+                        this.$amazonAutoKeyExchangeBack.show();
+                    }
+                    else {
+                        self.showAmazonConfig();
+                    }
 
                     if (!self.$form) {
-                        self.generateSimplePathForm();
+                        self.generateAutoKeyExchangeForm();
                     }
 
                     self._super();
@@ -93,19 +93,19 @@ define(
                 initEventHandlers: function () {
                     var self = this;
 
-                    self.$amazonSpBack.click(function () {
+                    self.$amazonAutoKeyExchangeBack.click(function () {
                         self.showAmazonConfig();
                         return false;
                     });
 
-                    $('#simplepath-skip').click(function () {
+                    $('#autokeyexchange-skip').click(function () {
                         self.hideAmazonConfig();
                         return false;
                     });
 
-                    $('#simplepath_form').on('submit', function () {
+                    $('#autokeyexchange_form').on('submit', function () {
                         // Remove the numeric indices added by Magento's form validation logic
-                        $('#simplepath_form :input').each(function() {
+                        $('#autokeyexchange_form :input').each(function() {
                             if($(this).attr('orig-name')) {
                                 $(this).attr('name', $(this).attr('orig-name'));
                                 $(this).removeAttr('orig-name');
@@ -113,65 +113,7 @@ define(
                         });
                         self.setupWindowLaunch();
                     });
-
-                    // self.$amazonCredentialJson.on('input', function () {
-                    //     self.updateCredentials(self);
-                    // });
                 },
-
-                /**
-                 * Detects when a properly formatted JSON block is pasted into the Credentials JSON field
-                 * and auto populates specified fields.
-                 *
-                 * @param self
-                 */
-                // updateCredentials: function (self) {
-                //     var elJson = self.$amazonCredentialJson.val(), obj = null, success = true, item = null;
-                //
-                //     try {
-                //         obj = $.parseJSON($.trim(elJson));
-                //     }
-                //     catch (err) {
-                //         obj = null;
-                //         self.$amazonCredentialJson.val('').attr(
-                //             'placeholder',
-                //             $t('Invalid JSON credentials entered, please try again.')
-                //         ).focus();
-                //     }
-                //
-                //     if (obj && typeof obj === 'object') {
-                //
-                //         for (var prop in obj) {
-                //             if (obj.hasOwnProperty(prop)) {
-                //                 item = $('#payment_' + self.getCountry() + '_amazon_pay_credentials_'
-                //                     + $.trim(prop));
-                //
-                //                 if (item && item.length) {
-                //                     $('#payment_' + self.getCountry() + '_amazon_pay_credentials_'
-                //                         + $.trim(prop)).val($.trim(obj[prop]));
-                //                 }
-                //                 else {
-                //                     success = false;
-                //                 }
-                //             }
-                //         }
-                //
-                //         if (success) {
-                //             self.$amazonCredentialJson.val('').attr(
-                //                 'placeholder',
-                //                 $t('Credential fields successfully updated and being saved.')
-                //             ).focus();
-                //             $('#save').click();
-                //         }
-                //         else {
-                //             self.$amazonCredentialJson.val('').attr(
-                //                 'placeholder',
-                //                 $t('One or more of your credential fields did not parse correctly. ' +
-                //                     'Please review your entry and try again.')
-                //             ).focus();
-                //         }
-                //     }
-                // },
 
                 /**
                  * Sets up Amazon merchant key popup and polls for data update upon user completion.
@@ -184,7 +126,6 @@ define(
                         elCheckDefault = $('#payment_' + self.getCountry()
                             + '_amazon_pay_credentials_payment_region_inherit:checked'),
                         elRegion = $('payment_' + self.getCountry() + '_amazon_pay_credentials_payment_region');
-                        // elJson = self.$amazonCredentialJson.val();
 
                     for (var i in heights) {
                         if (heights.hasOwnProperty(i)) {
@@ -262,13 +203,13 @@ define(
                 /**
                  * Sets up dynamic form for capturing popup/form input for simple path setup.
                  */
-                generateSimplePathForm: function () {
+                generateAutoKeyExchangeForm: function () {
 
                     this.$form = new Element('form', {
                         method: 'post',
                         action: this.amazonUrl,
-                        id: 'simplepath_form',
-                        target: 'simplepath',
+                        id: 'autokeyexchange_form',
+                        target: 'autokeyexchange',
                         novalidate: 'novalidate',
                     });
 
@@ -284,7 +225,7 @@ define(
                                         name: key,
                                         value: this.formParams[key][i],
                                         novalidate: 'novalidate'
-                                    })).appendTo($("#simplepath_form"));
+                                    })).appendTo($("#autokeyexchange_form"));
                                 }
                             }
                         } else {
@@ -293,20 +234,20 @@ define(
                                 name: key,
                                 novalidate: 'novalidate',
                                 value: this.formParams[key]
-                            })).appendTo($("#simplepath_form"));
+                            })).appendTo($("#autokeyexchange_form"));
                         }
                     }
 
                     // unable to use this.form, had to resort to direct call
-                    $('#simplepath_form').validate({});
+                    $('#autokeyexchange_form').validate({});
                 },
 
                 /**
                  * display amazon simple path config section
                  */
                 showAmazonConfig: function () {
-                    this.$amazonSimplepath.show();
-                    this.$amazonSpBack.hide();
+                    this.$amazonAutoKeyExchange.show();
+                    this.$amazonAutoKeyExchangeBack.hide();
                     if (this.$amazonCredentialsHeader.hasClass('open')) {
                         this.$amazonCredentialsHeader.click();
                     }
@@ -316,8 +257,8 @@ define(
                  * hide amazon simple path config.
                  */
                 hideAmazonConfig: function () {
-                    this.$amazonSimplepath.hide();
-                    this.$amazonSpBack.show();
+                    this.$amazonAutoKeyExchange.hide();
+                    this.$amazonAutoKeyExchangeBack.show();
                     if (!this.$amazonCredentialsHeader.hasClass('open')) {
                         this.$amazonCredentialsHeader.click();
                     }
@@ -340,7 +281,7 @@ define(
                 launchPopup: function (url, requestedWidth, requestedHeight) {
                     var leftOffset = this.getLeftOffset(requestedWidth),
                         topOffset = this.getTopOffset(requestedHeight),
-                        newWindow = window.open(url, 'simplepath', 'scrollbars=yes, width=' + requestedWidth
+                        newWindow = window.open(url, 'autokeyexchange', 'scrollbars=yes, width=' + requestedWidth
                             + ', height=' + requestedHeight + ', top=' + topOffset + ', left=' + leftOffset);
 
                     if (window.focus) {

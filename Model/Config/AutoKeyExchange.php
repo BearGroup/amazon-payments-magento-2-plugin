@@ -315,7 +315,7 @@ class AutoKeyExchange
             $decryptedKey = null;
 
             $success = openssl_private_decrypt(
-                base64_decode($publicKeyId),
+                base64_decode($publicKeyId), // phpcs:ignore Magento2.Functions.DiscouragedFunction
                 $decryptedKey,
                 $this->getPrivateKey()
             );
@@ -447,6 +447,7 @@ class AutoKeyExchange
             if ($baseUrl = $store->getBaseUrl(UrlInterface::URL_TYPE_WEB, true)) {
                 $value = $baseUrl . 'amazon/login/processAuthHash/';  // @TODO: wat?
                 $urlArray[] = $value;
+                // phpcs:ignore Magento2.Functions.DiscouragedFunction
                 $url = parse_url($baseUrl);
                 if (isset($url['host'])) {
                     $baseUrls[] = 'https://' . $url['host'];
@@ -454,6 +455,7 @@ class AutoKeyExchange
             }
             // Get unsecure base URL
             if ($baseUrl = $store->getBaseUrl(UrlInterface::URL_TYPE_WEB, false)) {
+                // phpcs:ignore Magento2.Functions.DiscouragedFunction
                 $url = parse_url($baseUrl);
                 if (isset($url['host'])) {
                     $baseUrls[] = 'https://' . $url['host'];
@@ -502,9 +504,10 @@ class AutoKeyExchange
 
         $region = null;
         if ($currency) { // @TODO: refactor to be more clear
-            $region = isset($this->_mapCurrencyRegion[$currency]) ? strtoupper($this->_mapCurrencyRegion[$currency]) : 'DE';
+            $region = isset($this->_mapCurrencyRegion[$currency]) ?
+                strtoupper($this->_mapCurrencyRegion[$currency]) :
+                'DE';
         }
-
 
         if ($region == 'DE') {
             $region = 'Euro Region';
@@ -524,7 +527,10 @@ class AutoKeyExchange
             if ($this->amazonConfig->isActive($this->_scope, $this->_scopeId)) { // @TODO: check what this is doing
                 $isCurrencyValid = $this->amazonConfig->canUseCurrency($currency, $this->_scope, $this->_scopeId);
             } else {
-                $isCurrencyValid = in_array($currency, $this->amazonConfig->getValidCurrencies($this->_scope, $this->_scopeId));
+                $isCurrencyValid = in_array(
+                    $currency,
+                    $this->amazonConfig->getValidCurrencies($this->_scope, $this->_scopeId)
+                );
             }
         }
         return $isCurrencyValid ? $currency : null;
@@ -551,16 +557,17 @@ class AutoKeyExchange
     }
 
     /**
-     * Return array of config for JSON AmazonSp variable.
+     * Return array of config for JSON Amazon Auto Key Exchange variables.
      */
     public function getJsonAmazonAKEConfig()
-    { // @TODO: review which of these are required
+    {
+        // @TODO: review which of these are required
         return [
             'co'            => $this->getCountry(),
             'region'        => $this->getRegion(),
             'currency'      => $this->getCurrency(),
             'amazonUrl'     => $this->getEndpointRegister(),
-            'pollUrl'       => $this->backendUrl->getUrl('amazonsp/simplepath/poll/'), // @TODO: remove polling?
+            'pollUrl'       => $this->backendUrl->getUrl('amazon/autokeyexchange/poll/'),
             'isSecure'      => (int) ($this->request->isSecure()),
             'hasOpenssl'    => (int) (extension_loaded('openssl')),
             'formParams'    => $this->getFormParams(),

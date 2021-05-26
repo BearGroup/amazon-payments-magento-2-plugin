@@ -42,6 +42,11 @@ class Listener extends \Magento\Framework\App\Action\Action implements CsrfAware
     private $exceptionLogger;
 
     /**
+     * @var \Laminas\Uri\Http
+     */
+    private $uri;
+
+    /**
      * Listener constructor.
      * @param \Magento\Framework\App\Action\Context $context
      * @param \Magento\Framework\Controller\Result\JsonFactory $jsonResultFactory
@@ -52,10 +57,12 @@ class Listener extends \Magento\Framework\App\Action\Action implements CsrfAware
         \Magento\Framework\App\Action\Context $context,
         \Magento\Framework\Controller\Result\JsonFactory $jsonResultFactory,
         \Amazon\Pay\Model\Config\AutoKeyExchange $autokeyexchange,
+        \Laminas\Uri\Http $uri,
         ExceptionLogger $exceptionLogger = null
     ) {
         $this->autokeyexchange = $autokeyexchange;
         $this->jsonResultFactory = $jsonResultFactory;
+        $this->uri = $uri;
         $this->exceptionLogger = $exceptionLogger ?: ObjectManager::getInstance()->get(ExceptionLogger::class);
         parent::__construct($context);
     }
@@ -66,9 +73,8 @@ class Listener extends \Magento\Framework\App\Action\Action implements CsrfAware
     public function execute()
     {
         try {
-            $originHeader = parse_url($this->getRequest()->getHeader('Origin'));
-            if (is_array($originHeader) && array_key_exists('host', $originHeader)) {
-                $host = $originHeader['host'];
+            $originHeader = $this->getRequest()->getHeader('Origin');
+            if (!empty($originHeader) && $host = $this->uri->parse($originHeader)->getHost()) {
                 if (in_array($host, $this->autokeyexchange->getListenerOrigins())) {
                     $this->getResponse()->setHeader('Access-Control-Allow-Origin', 'https://' . $host);
                 }
@@ -78,20 +84,21 @@ class Listener extends \Magento\Framework\App\Action\Action implements CsrfAware
             $this->getResponse()->setHeader('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token');
             $this->getResponse()->setHeader('Vary', 'Origin');
 
+            $result = $this->jsonResultFactory->create();
             $authToken = $this->_request->getParam('auth');
             if ($this->autokeyexchange->validateAuthToken($authToken)) {
                 $payload = $this->_request->getParam('payload');
-
                 if ($this->autokeyexchange->decryptPayload($payload, false)) {
                     $status = ['result' => 'success'];
                 } else {
                     $status = ['result' => 'error', 'message' => 'payload parameter not found.'];
+                    $result->setHttpResponseCode(400);
                 }
             } else {
                 $status = ['result' => 'error', 'message' => 'invalid auth token.'];
+                $result->setHttpResponseCode(400);
             }
 
-            $result = $this->jsonResultFactory->create();
             $result->setData($status);
 
             return $result;
