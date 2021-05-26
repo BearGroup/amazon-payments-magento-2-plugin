@@ -412,6 +412,7 @@ class AutoKeyExchange
         if (!$this->getConfig('payment/amazon_payment_v2/active')) {
             $this->config->saveConfig('payment/amazon_payment_v2/active', true, $this->_scope, $this->_scopeId);
             $this->messageManager->addSuccessMessage(__("Amazon Pay is now enabled."));
+            $this->cacheManager->clean([CacheTypeConfig::TYPE_IDENTIFIER]);
         }
     }
 
@@ -567,7 +568,8 @@ class AutoKeyExchange
             'region'        => $this->getRegion(),
             'currency'      => $this->getCurrency(),
             'amazonUrl'     => $this->getEndpointRegister(),
-            'pollUrl'       => $this->backendUrl->getUrl('amazon/autokeyexchange/poll/'),
+            'pollUrl'       => $this->backendUrl->getUrl('amazon_pay/pay/autoKeyExchangePoll'),
+            'resetAKEUrl'   => $this->backendUrl->getUrl('amazon_pay/pay/resetAutoKey'),
             'isSecure'      => (int) ($this->request->isSecure()),
             'hasOpenssl'    => (int) (extension_loaded('openssl')),
             'formParams'    => $this->getFormParams(),

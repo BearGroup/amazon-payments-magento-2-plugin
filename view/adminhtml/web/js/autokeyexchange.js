@@ -113,6 +113,27 @@ define(
                         });
                         self.setupWindowLaunch();
                     });
+
+                    $('#reset-auto-key-exchange-button').click(function() {
+                        $('#reset-auto-key-exchange-message').show();
+                        $.ajax({
+                            url: self.resetAKEUrl,
+                            data: {},
+                            type: 'GET',
+                            cache: true,
+                            dataType: 'json',
+                            context: this,
+
+                            /**
+                             * Response handler
+                             * @param {Object} response
+                             */
+                            success: function (response) {
+                                document.location.replace(document.location + '#payment_amazon_payments-head');
+                                location.reload();
+                            }
+                        });
+                    });
                 },
 
                 /**
