@@ -227,11 +227,6 @@
                             <config_path>payment/amazon_payment_v2/allowed_ips</config_path>
                             <backend_model>Magento\Developer\Model\Config\Backend\AllowedIps</backend_model>
                         </field>
-                        <field id="reset_auto_key_exchange" translate="label comment" sortOrder="25" showInDefault="1" showInWebsite="1" showInStore="1">
-                            <label>Reset Amazon Account Registration/Configuration</label>
-                            <frontend_model>Amazon\Pay\Block\Adminhtml\System\Config\Form\ResetAutoKeyExchange</frontend_model>
-                            <comment><![CDATA[If you are trying to automatically register/configure your account and it is not working, try clicking this to reset the internal public/private key and then re-try the setup button.]]></comment>
-                        </field>
                     </group>
                 </group>
             </group>

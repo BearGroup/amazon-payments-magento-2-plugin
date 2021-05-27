@@ -69,6 +69,16 @@
         <p id="amazon_reload">
             <?= $block->escapeHtml(__('Updating your config with new keys, please wait...')); ?>
         </p>
+        <div class="reset-auto-key-exchange">
+            <button id="reset-auto-key-exchange-button" type="button">
+                <?= /* @noEscape */ __('Reset account registration/configuration') ?>
+            </button>
+            <br />
+            <span id="reset-auto-key-exchange-message">
+                <?= /* @noEscape */ __('Please wait, resetting Amazon configuration. Once the page reloads, ' .
+                'please retry initiating account registration/configuration.'); ?>
+            </span>
+        </div>
     <?php endif; ?>
 </div>
 
