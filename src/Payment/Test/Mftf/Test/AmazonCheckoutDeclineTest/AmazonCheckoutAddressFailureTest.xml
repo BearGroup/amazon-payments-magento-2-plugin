@@ -8,6 +8,7 @@
             <severity value="CRITICAL"/>
             <group value="amazon_decline"/>
             <group value="amazon_payment"/>
+            <group value="skip"/>
         </annotations>
 
         <before>
