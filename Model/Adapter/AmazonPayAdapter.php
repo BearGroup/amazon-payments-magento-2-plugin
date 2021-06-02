@@ -475,6 +475,48 @@ class AmazonPayAdapter
         return json_encode($payload, JSON_UNESCAPED_SLASHES);
     }
 
+    public function generatePayNowButtonPayload($quote, $paymentIntent = self::PAYMENT_INTENT_AUTHORIZE)
+    {
+        $paymentIntent = $paymentIntent == self::PAYMENT_INTENT_AUTHORIZE ? 'Authorize' : 'AuthorizeWithCapture';
+
+        $payload = [
+            'webCheckoutDetails' => [
+                'checkoutMode' => 'ProcessOrder',
+//                'checkoutCancelUrl' => $this->getCancelUrl(),
+                'checkoutResultReturnUrl' => $this->amazonConfig->getCheckoutResultUrl(),
+            ],
+            'storeId' => $this->amazonConfig->getClientId(),
+
+            'scopes' => [
+                'name', 'email', 'phoneNumber', 'billingAddress' // @TODO: which scopes? configurable?
+            ],
+
+            'paymentDetails' => [
+                'paymentIntent' => $paymentIntent,
+                'canHandlePendingAuthorization' => $this->amazonConfig->canHandlePendingAuthorization(),
+                'chargeAmount' => $this->createPrice($quote->getGrandTotal(), $quote->getQuoteCurrencyCode()),
+            ],
+            'merchantMetadata' => [
+                'merchantReferenceId' => $quote->getReservedOrderId(),
+                'merchantStoreName' => $this->amazonConfig->getStoreName(),
+                'customInformation' => $this->getMerchantCustomInformation(),
+            ],
+
+            // @TODO: don't hardcode data :)
+            'addressDetails' => [
+                'name' => 'jay test',
+                'addressLine1' => '123 mystreet',
+                'city' => 'bella vista',
+                'stateOrRegion' => 'AR',
+                'postalCode' => '72714',
+                'countryCode' => 'US',
+                'phoneNumber' => '1234567890',
+            ]
+        ];
+
+        return json_encode($payload, JSON_UNESCAPED_SLASHES);
+    }
+
     public function signButton($payload, $storeId = null)
     {
         return $this->clientFactory->create($storeId)->generateButtonSignature($payload);

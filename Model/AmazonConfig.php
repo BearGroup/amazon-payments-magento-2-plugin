@@ -562,6 +562,19 @@ class AmazonConfig
     }
 
     /**
+     * @return string
+     */
+    public function getCheckoutResultUrl($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
+    {
+        $path = $this->getCheckoutResultUrlPath($scope, $scopeCode);
+
+        return $this->storeManager->getStore()->getUrl(
+            $path,
+            ['_forced_secure' => true]
+        );
+    }
+
+    /**
      * @param string $scope
      * @param mixed $scopeCode
      * @return array
