@@ -560,6 +560,26 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 ];
             }
 
+            if ($amazonSession['productType'] == 'PayOnly') {
+                $addressData = $amazonSession['billingAddress'];
+
+                $addressData['state'] = $addressData['stateOrRegion'];
+                $addressData['phone'] = $addressData['phoneNumber'];
+
+                $address = array_combine(
+                    array_map('ucfirst', array_keys($addressData)),
+                    array_values($addressData)
+                );
+                $amazonAddress  = $this->amazonAddressFactory->create(['address' => $address]);
+
+                $customerAddress = $this->addressHelper->convertToMagentoEntity($amazonAddress);
+                $cart->getBillingAddress()->importCustomerAddressData($customerAddress);
+                $cart->getPayment()->setMethod(\Amazon\Pay\Gateway\Config\Config::CODE);
+                if (empty($cart->getCustomerEmail())) {
+                    $cart->setCustomerEmail($amazonSession['buyer']['email']);
+                }
+            }
+
             // get payment to load it in the session, so that a salesrule that relies on payment method conditions
             // can work as expected
             $payment = $this->magentoCheckoutSession->getQuote()->getPayment();

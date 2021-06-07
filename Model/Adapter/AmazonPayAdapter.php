@@ -16,6 +16,9 @@
 
 namespace Amazon\Pay\Model\Adapter;
 
+use Amazon\Pay\Model\Config\Source\PaymentAction;
+use Magento\Quote\Model\Quote;
+
 class AmazonPayAdapter
 {
     const PAYMENT_INTENT_CONFIRM = 'Confirm';
@@ -475,21 +478,17 @@ class AmazonPayAdapter
         return json_encode($payload, JSON_UNESCAPED_SLASHES);
     }
 
-    public function generatePayNowButtonPayload($quote, $paymentIntent = self::PAYMENT_INTENT_AUTHORIZE)
+    public function generatePayNowButtonPayload(Quote $quote, $paymentIntent = PaymentAction::AUTHORIZE)
     {
-        $paymentIntent = $paymentIntent == self::PAYMENT_INTENT_AUTHORIZE ? 'Authorize' : 'AuthorizeWithCapture';
+        // Always use Authorize for now, so that async transactions are handled properly
+        $paymentIntent = self::PAYMENT_INTENT_AUTHORIZE;
 
         $payload = [
             'webCheckoutDetails' => [
                 'checkoutMode' => 'ProcessOrder',
-//                'checkoutCancelUrl' => $this->getCancelUrl(),
-                'checkoutResultReturnUrl' => $this->amazonConfig->getCheckoutResultUrl(),
+                'checkoutResultReturnUrl' => $this->amazonConfig->getPayNowResultUrl(),
             ],
             'storeId' => $this->amazonConfig->getClientId(),
-
-            'scopes' => [
-                'name', 'email', 'phoneNumber', 'billingAddress' // @TODO: which scopes? configurable?
-            ],
 
             'paymentDetails' => [
                 'paymentIntent' => $paymentIntent,
@@ -501,18 +500,25 @@ class AmazonPayAdapter
                 'merchantStoreName' => $this->amazonConfig->getStoreName(),
                 'customInformation' => $this->getMerchantCustomInformation(),
             ],
-
-            // @TODO: don't hardcode data :)
-            'addressDetails' => [
-                'name' => 'jay test',
-                'addressLine1' => '123 mystreet',
-                'city' => 'bella vista',
-                'stateOrRegion' => 'AR',
-                'postalCode' => '72714',
-                'countryCode' => 'US',
-                'phoneNumber' => '1234567890',
-            ]
         ];
+
+        $address = $quote->getShippingAddress();
+        if (!empty($address->getPostcode())) {
+            $addressData = [
+                'name' => $address->getName(),
+                'city' => $address->getCity(),
+                'stateOrRegion' => $address->getRegionCode(),
+                'postalCode' => $address->getPostcode(),
+                'countryCode' => $address->getCountry(),
+                'phoneNumber' => $address->getTelephone(),
+            ];
+            foreach ($address->getStreet() as $index => $streetLine) {
+                $addressKey = 'addressLine' . ($index + 1);
+                $addressData[$addressKey] = $streetLine;
+            }
+
+            $payload['addressDetails'] = $addressData;
+        }
 
         return json_encode($payload, JSON_UNESCAPED_SLASHES);
     }

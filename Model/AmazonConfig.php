@@ -564,12 +564,10 @@ class AmazonConfig
     /**
      * @return string
      */
-    public function getCheckoutResultUrl($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
+    public function getPayNowResultUrl($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
     {
-        $path = $this->getCheckoutResultUrlPath($scope, $scopeCode);
-
         return $this->storeManager->getStore()->getUrl(
-            $path,
+            'amazon_pay/checkout/completeSession',
             ['_forced_secure' => true]
         );
     }
