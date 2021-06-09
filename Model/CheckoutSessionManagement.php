@@ -574,7 +574,6 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
                 $customerAddress = $this->addressHelper->convertToMagentoEntity($amazonAddress);
                 $cart->getBillingAddress()->importCustomerAddressData($customerAddress);
-                $cart->getPayment()->setMethod(\Amazon\Pay\Gateway\Config\Config::CODE);
                 if (empty($cart->getCustomerEmail())) {
                     $cart->setCustomerEmail($amazonSession['buyer']['email']);
                 }
