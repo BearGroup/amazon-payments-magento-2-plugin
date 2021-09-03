@@ -28,7 +28,7 @@ class Authorize extends \Amazon\Pay\Controller\Login
      */
     public function execute()
     {
-        if (!$this->amazonConfig->isLwaEnabled()) {
+        if (!$this->amazonConfig->isSiwaEnabled()) {
             throw new NotFoundException(__('Action is not available'));
         }
 

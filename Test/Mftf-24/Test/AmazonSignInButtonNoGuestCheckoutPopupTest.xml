@@ -12,7 +12,7 @@
 
         <before>
             <createData entity="SimpleTwo" stepKey="createSimpleProduct"/>
-            <createData entity="SampleAmazonPaymentConfigLwa" stepKey="SampleAmazonPaymentConfigLwa"/>
+            <createData entity="SampleAmazonPaymentConfigSiwa" stepKey="SampleAmazonPaymentConfigSiwa"/>
             <magentoCLI command="config:set checkout/options/guest_checkout 0" stepKey="disableGuestCheckout"/>
             <magentoCLI command="cache:flush" stepKey="flushCache"/>
         </before>

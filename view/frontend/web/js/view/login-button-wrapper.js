@@ -29,7 +29,7 @@ define(
     ) {
         'use strict';
 
-        if (amazonStorage.isLwaEnabled) {
+        if (amazonStorage.isSiwaEnabled) {
             return component.extend({
                 defaults: {
                     template: 'Amazon_Pay/login-button-wrapper'

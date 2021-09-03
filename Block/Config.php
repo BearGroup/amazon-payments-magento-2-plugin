@@ -60,7 +60,7 @@ class Config extends \Magento\Framework\View\Element\Template
             'code'                     => \Amazon\Pay\Gateway\Config\Config::CODE,
             'is_method_available'      => $this->amazonConfig->isPayButtonAvailableAsPaymentMethod(),
             'is_pay_only'              => $this->amazonHelper->isPayOnly(),
-            'is_lwa_enabled'            => $this->isLwaEnabled(),
+            'is_siwa_enabled'           => $this->isSiwaEnabled(),
             'is_guest_checkout_enabled' => $this->amazonConfig->isGuestCheckoutEnabled(),
         ];
 
@@ -78,8 +78,8 @@ class Config extends \Magento\Framework\View\Element\Template
     /**
      * @return bool
      */
-    public function isLwaEnabled()
+    public function isSiwaEnabled()
     {
-        return $this->amazonConfig->isLwaEnabled();
+        return $this->amazonConfig->isSiwaEnabled();
     }
 }

@@ -29,12 +29,12 @@ define([
             return storage;
         };
 
-    var isLwaEnabled = amazonPayConfig.getValue('is_lwa_enabled');
+    var isSiwaEnabled = amazonPayConfig.getValue('is_siwa_enabled');
     var isGuestCheckoutEnabled = amazonPayConfig.getValue('is_guest_checkout_enabled');
 
     return {
         isEnabled: isEnabled,
-        isLwaEnabled: isLwaEnabled,
+        isSiwaEnabled: isSiwaEnabled,
         isGuestCheckoutEnabled: isGuestCheckoutEnabled,
 
         /**
