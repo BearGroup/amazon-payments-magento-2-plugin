@@ -16,6 +16,7 @@
 
 namespace Amazon\Pay\Gateway\Validator;
 
+use Amazon\Pay\Logger\Logger;
 use Magento\Payment\Gateway\Validator\AbstractValidator;
 use Magento\Payment\Gateway\Validator\ResultInterface;
 
@@ -33,11 +34,18 @@ class GeneralResponseValidator extends AbstractValidator
      */
     protected $validStates = [];
 
+    /**
+     * @var Logger $logger
+     */
+    protected $logger;
+
     public function __construct(
         \Magento\Payment\Gateway\Validator\ResultInterfaceFactory $resultFactory,
+        \Amazon\Pay\Logger\Logger $logger,
         array $validStates = []
     ) {
         $this->validStates = $validStates;
+        $this->logger = $logger;
         parent::__construct($resultFactory);
     }
 
@@ -54,6 +62,8 @@ class GeneralResponseValidator extends AbstractValidator
         $errorCodes = [];
 
         $response = $validationSubject['response'];
+
+        $this->logger->debug('responseValidator -> ' . json_encode($response));
 
         if (!in_array($response['status'], [200, 201])) {
             $isValid = false;

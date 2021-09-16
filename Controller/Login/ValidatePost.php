@@ -18,6 +18,7 @@ namespace Amazon\Pay\Controller\Login;
 use Amazon\Pay\Api\CustomerLinkManagementInterface;
 use Amazon\Pay\Domain\ValidationCredentials;
 use Amazon\Pay\Helper\Session;
+use Amazon\Pay\Logger\Logger;
 use Magento\Customer\Model\Account\Redirect as AccountRedirect;
 use Magento\Customer\Model\CustomerRegistry;
 use Magento\Framework\App\Action\Action;
@@ -52,6 +53,11 @@ class ValidatePost extends Action
     private $customerLinkManagement;
 
     /**
+     * @var Logger $logger
+     */
+    private $logger;
+
+    /**
      * ValidatePost constructor.
      *
      * @param Context                  $context
@@ -60,6 +66,7 @@ class ValidatePost extends Action
      * @param CustomerRegistry         $customerRegistry
      * @param Encryptor                $encryptor
      * @param customerLinkManagement   $customerLinkManagement
+     * @param Logger                   $logger
      */
     public function __construct(
         Context $context,
@@ -67,7 +74,8 @@ class ValidatePost extends Action
         AccountRedirect $accountRedirect,
         CustomerRegistry $customerRegistry,
         Encryptor $encryptor,
-        CustomerLinkManagementInterface $customerLinkManagement
+        CustomerLinkManagementInterface $customerLinkManagement,
+        Logger $logger
     ) {
         parent::__construct($context);
 
@@ -76,6 +84,7 @@ class ValidatePost extends Action
         $this->customerRegistry       = $customerRegistry;
         $this->encryptor              = $encryptor;
         $this->customerLinkManagement = $customerLinkManagement;
+        $this->logger                 = $logger;
     }
 
     public function execute()
@@ -86,6 +95,8 @@ class ValidatePost extends Action
             $password = $this->getRequest()->getParam('password');
             $customerSecure = $this->customerRegistry->retrieveSecureData($credentials->getCustomerId());
             $hash = $customerSecure->getPasswordHash() ?? '';
+
+            $this->logger->debug('validatePost -> ' . $hash);
 
             if ($this->encryptor->validateHash($password, $hash)) {
                 $this->customerLinkManagement->updateLink($credentials->getCustomerId(), $credentials->getAmazonId());

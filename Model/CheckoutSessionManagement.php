@@ -21,6 +21,7 @@ use Amazon\Pay\Gateway\Config\Config;
 use Amazon\Pay\Model\Config\Source\AuthorizationMode;
 use Amazon\Pay\Model\Config\Source\PaymentAction;
 use Amazon\Pay\Model\AsyncManagement;
+use AMazon\Pay\Logger\Logger;
 use http\Exception\UnexpectedValueException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Exception\NotFoundException;
@@ -32,7 +33,6 @@ use Magento\Sales\Model\Order\Invoice;
 use Magento\Sales\Model\Order\Payment;
 use Magento\Quote\Model\MaskedQuoteIdToQuoteIdInterface;
 use Magento\Sales\Api\Data\TransactionInterface as Transaction;
-
 class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManagementInterface
 {
     /**
@@ -146,6 +146,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     private $maskedQuoteIdConverter;
 
     /**
+     * @var Logger
+     */
+    private $logger;
+
+    /**
      * CheckoutSessionManagement constructor.
      * @param \Magento\Store\Model\StoreManagerInterface $storeManager
      * @param \Magento\Quote\Model\QuoteIdMaskFactory $quoteIdMaskFactory
@@ -167,6 +172,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * @param \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder
      * @param \Magento\Sales\Model\ResourceModel\Order\CollectionFactory $orderCollectionFactory
      * @param MaskedQuoteIdToQuoteIdInterface $maskedQuoteIdConverter
+     * @param Logger $logger
      */
     public function __construct(
         \Magento\Store\Model\StoreManagerInterface $storeManager,
@@ -188,7 +194,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         \Magento\Sales\Api\TransactionRepositoryInterface $transactionRepository,
         \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder,
         \Magento\Sales\Model\ResourceModel\Order\CollectionFactory $orderCollectionFactory,
-        MaskedQuoteIdToQuoteIdInterface $maskedQuoteIdConverter
+        MaskedQuoteIdToQuoteIdInterface $maskedQuoteIdConverter,
+        \Amazon\Pay\Logger\Logger $logger
     ) {
         $this->storeManager = $storeManager;
         $this->quoteIdMaskFactory = $quoteIdMaskFactory;
@@ -210,6 +217,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         $this->searchCriteriaBuilder = $searchCriteriaBuilder;
         $this->orderCollectionFactory = $orderCollectionFactory;
         $this->maskedQuoteIdConverter = $maskedQuoteIdConverter;
+        $this->logger = $logger;
     }
 
     /**
@@ -374,6 +382,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 'public_key_id' => $this->amazonConfig->getPublicKeyId(),
             ];
         }
+
+        $this->logger->debug('getConfig -> ' . json_encode($result));
         return $result;
     }
 
@@ -613,6 +623,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 $amazonAddress  = $this->amazonAddressFactory->create(['address' => $address]);
 
                 $customerAddress = $this->addressHelper->convertToMagentoEntity($amazonAddress);
+
+                $this->logger->debug('completeCheckoutSession:customerAddress -> ' . json_encode($customerAddress));
                 $quote->getBillingAddress()->importCustomerAddressData($customerAddress);
                 if (empty($quote->getCustomerEmail())) {
                     $quote->setCustomerEmail($amazonSession['buyer']['email']);
