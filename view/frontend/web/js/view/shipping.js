@@ -2,11 +2,21 @@
 define(
     [
         'jquery',
-        'Amazon_Pay/js/model/storage'
+        'Amazon_Pay/js/model/storage',
+        'uiRegistry',
+        'Magento_Checkout/js/model/checkout-data-resolver',
+        'Magento_Checkout/js/model/quote',
+        'Magento_Customer/js/model/customer',
+        'mage/translate',
     ],
     function (
         $,
-        amazonStorage
+        amazonStorage,
+        registry,
+        checkoutDataResolver,
+        quote,
+        customer,
+        $t
     ) {
         'use strict';
 
@@ -23,6 +33,7 @@ define(
                 initialize: function () {
                     this._super();
                     this.isNewAddressAdded(true);
+                    this.refreshShippingRegion();
                     return this;
                 },
 
@@ -35,6 +46,39 @@ define(
                     $(loginFormSelector).validation();
 
                     return $(loginFormSelector + ' input[type=email]').valid();
+                },
+
+                /**
+                 * @return {Boolean}
+                 */
+                validateShippingInformation: function () {
+                    var isValidShippingInformation = this._super();
+                    if (!isValidShippingInformation) {
+                        var option = _.isObject(this.countryOptions) && this.countryOptions[quote.shippingAddress().countryId];
+                        if (customer.isLoggedIn() &&
+                            option &&
+                            option['is_region_required'] &&
+                            !quote.shippingAddress().region) {
+
+                                if (!this.isFormPopUpVisible()) {
+                                    this.showFormPopUp();    
+                                }
+                                
+                                if (_.isUndefined(this.errorValidationMessage()) || this.errorValidationMessage() === false) {
+                                    this.errorValidationMessage($t('Please specify a regionId in shipping address.'));
+                                }
+                        }
+                    }
+
+                    return isValidShippingInformation;
+                },
+
+                refreshShippingRegion: function() {
+                    var checkoutProvider = registry.get('checkoutProvider');
+
+                    checkoutProvider.on('shippingAddress.region_id', function (regionId) {
+                        checkoutDataResolver.resolveEstimationAddress();
+                    });
                 }
             });
         }
