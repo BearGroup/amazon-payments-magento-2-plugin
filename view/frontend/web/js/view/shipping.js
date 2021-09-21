@@ -8,6 +8,7 @@ define(
         'Magento_Checkout/js/model/quote',
         'Magento_Customer/js/model/customer',
         'mage/translate',
+        'Magento_Checkout/js/action/select-billing-address'
     ],
     function (
         $,
@@ -16,7 +17,8 @@ define(
         checkoutDataResolver,
         quote,
         customer,
-        $t
+        $t,
+        selectBillingAddress
     ) {
         'use strict';
 
@@ -26,7 +28,6 @@ define(
             }
 
             return Component.extend({
-
                 /**
                  * Initialize shipping
                  */
@@ -67,6 +68,10 @@ define(
                                 if (_.isUndefined(this.errorValidationMessage()) || this.errorValidationMessage() === false) {
                                     this.errorValidationMessage($t('Please specify a regionId in shipping address.'));
                                 }
+                        }
+                    } else {
+                        if ($('button.iosc-place-order-button').length > 0) {
+                            selectBillingAddress(quote.shippingAddress());
                         }
                     }
 
