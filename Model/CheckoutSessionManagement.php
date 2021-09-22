@@ -435,7 +435,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $response = $this->amazonAdapter->updateCheckoutSession(
                 $quote,
                 $amazonCheckoutSessionId,
-                $paymentIntent
+                $paymentIntent,
+                $cartId
             );
             if (!empty($response['webCheckoutDetails']['amazonPayRedirectUrl'])) {
                 $result = $response['webCheckoutDetails']['amazonPayRedirectUrl'];
@@ -659,7 +660,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             foreach($totals as $total) {
                 $this->logger->debug('completeCheckoutSession: total -> ' . json_encode($total->getData()));
             }
-            
+
             $orderId = $this->cartManagement->placeOrder($quote->getId());
             $order = $this->orderRepository->get($orderId);
             $result = [

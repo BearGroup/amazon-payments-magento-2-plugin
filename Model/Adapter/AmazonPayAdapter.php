@@ -159,8 +159,12 @@ class AmazonPayAdapter
      * @param $paymentIntent
      * @return mixed
      */
-    public function updateCheckoutSession($quote, $checkoutSessionId, $paymentIntent = self::PAYMENT_INTENT_AUTHORIZE)
-    {
+    public function updateCheckoutSession(
+        $quote,
+        $checkoutSessionId,
+        $paymentIntent = self::PAYMENT_INTENT_AUTHORIZE,
+        $cartId = null
+    ) {
         $storeId = $quote->getStoreId();
         $store = $quote->getStore();
 
@@ -172,9 +176,14 @@ class AmazonPayAdapter
             }
         }
 
+        $checkoutResultReturnUrl = $this->url->getRouteUrl('amazon_pay/checkout/completeSession');
+        if (isset($cartId)) {
+            $checkoutResultReturnUrl .= "?magentoCartId=" . $cartId;
+        }
+
         $payload = [
             'webCheckoutDetails' => [
-                'checkoutResultReturnUrl' => $this->url->getRouteUrl('amazon_pay/checkout/completeSession')
+                'checkoutResultReturnUrl' => $checkoutResultReturnUrl
             ],
             'paymentDetails' => [
                 'paymentIntent' => $paymentIntent,
@@ -554,7 +563,7 @@ class AmazonPayAdapter
         $payload = [
             'webCheckoutDetails' => [
                 'checkoutMode' => 'ProcessOrder',
-                'checkoutResultReturnUrl' => $this->amazonConfig->getPayNowResultUrl(),
+                'checkoutResultReturnUrl' => $this->amazonConfig->getPayNowResultUrl(), // @TODO: add cart ID to return url
                 'checkoutCancelUrl' => $this->getCancelUrl(),
             ],
             'storeId' => $this->amazonConfig->getClientId(),

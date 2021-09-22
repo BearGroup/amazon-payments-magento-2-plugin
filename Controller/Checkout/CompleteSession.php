@@ -98,7 +98,11 @@ class CompleteSession extends \Magento\Framework\App\Action\Action
             // Bypass cache check in \Magento\PageCache\Model\DepersonalizeChecker
             $this->getRequest()->setParams(['ajax' => 1]);
             $amazonCheckoutSessionId = $this->getRequest()->getParam('amazonCheckoutSessionId');
-            $result = $this->amazonCheckoutSessionManagement->completeCheckoutSession($amazonCheckoutSessionId);
+            $maskedQuoteId = $this->getRequest()->getParam('magentoCartId');
+            $result = $this->amazonCheckoutSessionManagement->completeCheckoutSession(
+                $amazonCheckoutSessionId,
+                $maskedQuoteId
+            );
             if (!$result['success']) {
                 $this->messageManager->addErrorMessage($result['message']);
 
