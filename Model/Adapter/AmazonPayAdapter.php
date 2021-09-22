@@ -523,11 +523,16 @@ class AmazonPayAdapter
      *
      * @return string
      */
-    public function generateCheckoutButtonPayload()
+    public function generateCheckoutButtonPayload($maskedQuoteId = null)
     {
+        $checkoutReviewReturnUrl = $this->amazonConfig->getCheckoutReviewReturnUrl();
+        if (isset($maskedQuoteId)) {
+            $checkoutReviewReturnUrl .= "?magentoCartId=" . $maskedQuoteId;
+        }
+
         $payload = [
             'webCheckoutDetails' => [
-                'checkoutReviewReturnUrl' => $this->amazonConfig->getCheckoutReviewReturnUrl(),
+                'checkoutReviewReturnUrl' => $checkoutReviewReturnUrl,
                 'checkoutCancelUrl' => $this->getCancelUrl(),
             ],
             'storeId' => $this->amazonConfig->getClientId(),

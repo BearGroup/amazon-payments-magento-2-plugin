@@ -361,7 +361,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         $result = [];
         if ($this->canCheckoutWithAmazon($quote)) {
             $loginButtonPayload = $this->amazonAdapter->generateLoginButtonPayload();
-            $checkoutButtonPayload = $this->amazonAdapter->generateCheckoutButtonPayload();
+            $checkoutButtonPayload = $this->amazonAdapter->generateCheckoutButtonPayload($cartId);
             $payNowButtonPayload = $this->amazonAdapter->generatePayNowButtonPayload(
                 $quote,
                 $this->amazonConfig->getPaymentAction()
