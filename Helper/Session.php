@@ -17,13 +17,26 @@ namespace Amazon\Pay\Helper;
 
 use Amazon\Pay\Api\Data\AmazonCustomerInterface;
 use Amazon\Pay\Domain\ValidationCredentials;
+use Magento\Authorization\Model\UserContextInterface;
 use Magento\Customer\Api\Data\CustomerInterface;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Checkout\Model\Session as CheckoutSession;
 use Magento\Framework\Event\ManagerInterface as EventManagerInterface;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Quote\Api\CartManagementInterface;
+use Magento\Quote\Api\CartRepositoryInterface;
+use Magento\Quote\Api\Data\CartInterface;
+use Magento\Quote\Model\MaskedQuoteIdToQuoteIdInterface;
+use function PHPUnit\Framework\returnArgument;
 
 class Session
 {
+    /**
+     * @var CartManagementInterface
+     */
+    private $cartManagement;
+
     /**
      * @var CustomerSession
      */
@@ -40,19 +53,46 @@ class Session
     private $eventManager;
 
     /**
+     * @var CartRepositoryInterface
+     */
+    private $cartRepository;
+
+    /**
+     * @var MaskedQuoteIdToQuoteIdInterface
+     */
+    private $maskedQuoteIdConverter;
+
+    /**
+     * @var UserContextInterface
+     */
+    private $userContext;
+
+    /**
      * Session constructor.
+     * @param CartManagementInterface $cartManagement
      * @param CustomerSession $session
      * @param EventManagerInterface $eventManager
      * @param CheckoutSession $checkoutSession
+     * @param CartRepositoryInterface $cartRepository
+     * @param MaskedQuoteIdToQuoteIdInterface $maskedQuoteIdConverter
+     * @param UserContextInterface $userContext
      */
     public function __construct(
+        CartManagementInterface $cartManagement,
         CustomerSession $session,
         EventManagerInterface $eventManager,
-        CheckoutSession $checkoutSession
+        CheckoutSession $checkoutSession,
+        CartRepositoryInterface $cartRepository,
+        MaskedQuoteIdToQuoteIdInterface $maskedQuoteIdConverter,
+        UserContextInterface $userContext
     ) {
+        $this->cartManagement = $cartManagement;
         $this->session      = $session;
         $this->checkoutSession = $checkoutSession;
         $this->eventManager = $eventManager;
+        $this->cartRepository = $cartRepository;
+        $this->maskedQuoteIdConverter = $maskedQuoteIdConverter;
+        $this->userContext = $userContext;
     }
 
     /**
@@ -179,12 +219,58 @@ class Session
     }
 
     /**
-     * @return \Magento\Quote\Api\Data\CartInterface|\Magento\Quote\Model\Quote
+     * @return CartInterface|\Magento\Quote\Model\Quote
      * @throws \Magento\Framework\Exception\LocalizedException
      * @throws \Magento\Framework\Exception\NoSuchEntityException
      */
     public function getQuote()
     {
         return $this->checkoutSession->getQuote();
+    }
+
+    /**
+     * @param $cartId
+     * @return false|CartInterface
+     */
+    public function getQuoteFromIdOrSession($cartId = null)
+    {
+        try {
+            // the intention of is_numeric is to filter out any potential unwanted requests trying to guess quote ids
+            // we only really want to utilize masked ids here unless retrieved elsewhere
+            if (empty($cartId) || is_numeric($cartId)) {
+                $quote = $this->getQuote();
+                if (!$quote) {
+                    // here we'll check the user context for any available cart data before moving on
+                    $userContextCartId = $this->getCartIdViaUserContext();
+                    if ($userContextCartId !== null) {
+                        return $this->cartRepository->get($userContextCartId);
+                    }
+                }
+                return $quote;
+            }
+            $quoteId = $this->maskedQuoteIdConverter->execute($cartId);
+            return $this->cartRepository->get($quoteId);
+        } catch (NoSuchEntityException | LocalizedException $e) {
+            return false;
+        }
+    }
+
+    /**
+     * @return int|null
+     */
+    public function getCartIdViaUserContext()
+    {
+        try {
+            $customerId = $this->userContext->getUserId();
+
+            /** @var CartInterface */
+            $cart = $this->cartManagement->getCartForCustomer($customerId);
+            if ($cart) {
+                return $cart->getId();
+            }
+            return null;
+        } catch (NoSuchEntityException $e) {
+            return null;
+        }
     }
 }

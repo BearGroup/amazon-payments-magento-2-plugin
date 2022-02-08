@@ -174,7 +174,7 @@ class AmazonPayAdapter
 
         $payload = [
             'webCheckoutDetails' => [
-                'checkoutResultReturnUrl' => $this->url->getRouteUrl('amazon_pay/checkout/completeSession')
+                'checkoutResultReturnUrl' => $this->amazonConfig->getCheckoutResultReturnUrl()
             ],
             'paymentDetails' => [
                 'paymentIntent' => $paymentIntent,
@@ -509,7 +509,7 @@ class AmazonPayAdapter
     public function generateLoginButtonPayload()
     {
         $payload = [
-            'signInReturnUrl' => $this->url->getRouteUrl('amazon_pay/login/authorize/'),
+            'signInReturnUrl' => $this->getSignInUrl(),
             'signInCancelUrl' => $this->getCancelUrl(),
             'storeId' => $this->amazonConfig->getClientId(),
             'signInScopes' => ['name', 'email'],
@@ -599,7 +599,7 @@ class AmazonPayAdapter
             $payload['addressDetails'] = $addressData;
         }
 
-        return json_encode($payload, JSON_UNESCAPED_SLASHES);
+        return json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     public function signButton($payload, $storeId = null)
@@ -615,5 +615,11 @@ class AmazonPayAdapter
         }
 
         return $referer;
+    }
+
+    protected function getSignInUrl()
+    {
+        $signInUrl = $this->amazonConfig->getSignInResultUrlPath();
+        return $this->url->getUrl($signInUrl);
     }
 }

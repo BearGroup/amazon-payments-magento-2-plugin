@@ -1,5 +1,34 @@
 # Change Log
 
+## 5.10.0
+* Added signin REST endpoint
+* Fixed an issue that could occur when rendering the Amazon Pay button more than once
+* Fixed an issue with configuring payment methods at a store scope when the admin user doesn’t have access to the default scope (thanks @barbazul!)
+* Fixed an issue with configuration wizard executed in a store where the admin doesn’t have access to the default store
+* Fixed MFTF tests to allow for different flow on the Amazon authentication popup
+* Updated to allow partial/split capture in EU/UK regions
+* Updated REST endpoints to allow loading session from the user context instead of passing masked cart ID
+
+## 5.9.1
+* Fixed issue with umlauts in PayNow button flow
+* Updated config labels for Magento Checkout redirect paths
+
+## 5.9.0
+* Added custom Carrier Code mapping
+* Added config options to allow headless integrations to change return urls
+* Changed validation on private key to allow empty values
+* Fixed issue with processing an invalid Amazon response
+* Fixed issue with One Step Checkouts having stale data in the Payment Methods button
+
+## 5.8.0
+* Added log message if we are unable to complete checkout session due to an existing order with same quoteId
+* Added email when asynchronous order processing is declined
+* Fixed issue with Magento Open Source when configured to only allow a single address line
+* Fixed API output for config endpoint to return key/value pairs
+* Fixed issue generating Swagger docs (thanks @ebaschiera!)
+* Fixed issue with canceling transactions started prior to upgrading to CV2/Marketplace module
+* Fixed issue where the Amazon Pay payment method button on Onestepcheckout_Iosc would not trigger when clicking Place Order
+
 ## 5.7.1
 * Fixed issue when phone number not required and entered in Magento
 * Updated API calls to take in a masked cart ID so they can be used without relying on Magento sessions
