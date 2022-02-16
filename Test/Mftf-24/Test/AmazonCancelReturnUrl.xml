@@ -12,7 +12,7 @@
 
         <before>
             <createData entity="SimpleTwo" stepKey="createSimpleProduct"/>
-            <createData entity="SampleAmazonPaymentConfigSiwa" stepKey="SampleAmazonPaymentConfigSiwa"/>
+            <createData entity="SampleAmazonPaymentConfigAmazonSignIn" stepKey="SampleAmazonPaymentConfigAmazonSignIn"/>
             <magentoCLI command="config:set {{AmazonButtonProductConfig.path}} 1" stepKey="displayAmazonButtonProduct"/>
             <actionGroup ref="AdminLoginActionGroup" stepKey="loginToAdminPanel"/>
             <magentoCLI command="cache:flush" stepKey="flushCache"/>
@@ -35,7 +35,7 @@
         <executeJS function="return window.name;" stepKey="openerName"/>
 
         <helper class="\Amazon\Pay\Test\Mftf\Helper\SignInWithAmazon" method="clickSignInWithAmazon" stepKey="signInWithAmazon">
-            <argument name="siwaLocator">{{AmazonLoginSection.login}}</argument>
+            <argument name="amazonSignInLocator">{{AmazonLoginSection.login}}</argument>
         </helper>
         <actionGroup ref="AmazonSwitchToPopupActionGroup" stepKey="allowPopupToOpen" />
 

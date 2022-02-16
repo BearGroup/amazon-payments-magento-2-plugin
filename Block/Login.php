@@ -47,7 +47,7 @@ class Login extends Template
      */
     protected function _toHtml()
     {
-        if (!$this->amazonConfig->isSiwaEnabled()) {
+        if (!$this->amazonConfig->isAmazonSignInEnabled()) {
             return '';
         }
 

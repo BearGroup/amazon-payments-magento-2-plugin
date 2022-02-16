@@ -12,7 +12,7 @@
 
         <before>
             <createData entity="SimpleTwo" stepKey="createSimpleProduct"/>
-            <createData entity="SampleAmazonPaymentConfigSiwa" stepKey="SampleAmazonPaymentConfigSiwa"/>
+            <createData entity="SampleAmazonPaymentConfigAmazonSignIn" stepKey="SampleAmazonPaymentConfigAmazonSignIn"/>
             <magentoCLI command="config:set {{AmazonButtonProductConfig.path}} 1" stepKey="displayAmazonButtonProduct"/>
             <actionGroup ref="LoginAsAdmin" stepKey="loginToAdminPanel"/>
             <magentoCLI command="cache:flush" stepKey="flushCache"/>

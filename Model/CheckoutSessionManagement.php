@@ -844,7 +844,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      */
     public function signIn($buyerToken)
     {
-        if (!$this->amazonConfig->isLwaEnabled()) {
+        if (!$this->amazonConfig->isAmazonSignInEnabled()) {
             $result = [
                 'success' => false,
                 'message' => __('Amazon Sign-in is disabled')

@@ -95,10 +95,10 @@
                 </group>
                 <group id="options" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
                     <label>Options</label>
-                    <field id="v2_siwa_enabled" translate="label" type="select" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <field id="v2_amazon_signin_enabled" translate="label" type="select" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
                         <label>Enable Amazon Sign-in</label>
                         <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                        <config_path>payment/amazon_payment_v2/siwa_enabled</config_path>
+                        <config_path>payment/amazon_payment_v2/amazon_signin_enabled</config_path>
                         <comment><![CDATA[Please note that if Amazon Sign-in is disabled and Magento Guest Checkout is disabled, the customer will be able to use Amazon Pay only if already signed in with a Magento account]]></comment>
                     </field>
                     <field id="payment_action_v2" translate="label" type="select" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
