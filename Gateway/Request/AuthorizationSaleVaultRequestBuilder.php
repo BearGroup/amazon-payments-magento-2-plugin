@@ -63,7 +63,7 @@ class AuthorizationSaleVaultRequestBuilder implements BuilderInterface
         $customerId = $payment->getAdditionalInformation('customer_id');
         $token = $this->paymentTokenManagement->getByPublicHash($publicHash, $customerId);
         
-        if (!$token) return false;
+        if (!$token || !$token->getIsActive()) return [];
 
         if ($payment->getAmazonDisplayInvoiceAmount()) {
             $total = $payment->getAmazonDisplayInvoiceAmount();
