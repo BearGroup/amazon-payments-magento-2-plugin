@@ -55,8 +55,8 @@ class SettlementHandler implements HandlerInterface
         $payment = $paymentDO->getPayment();
 
         if (isset($response['chargeId'])) {
-            $payment->setTransactionId($response['chargeId'].'-capture');
-            $payment->setParentTransactionId($response['chargeId']);
+            $payment->setTransactionId($response['chargeId']);
+            $payment->setParentTransactionId($payment->getAuthorizationTransaction()->getTxnId());
 
             switch ($response['statusDetails']['state']) {
                 case 'CaptureInitiated':

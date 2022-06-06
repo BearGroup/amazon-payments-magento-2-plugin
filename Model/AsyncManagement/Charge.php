@@ -307,7 +307,7 @@ class Charge extends AbstractOperation
 
             $transaction = $this->transactionBuilder->setPayment($payment)
                 ->setOrder($order)
-                ->setTransactionId($chargeId . '-capture')
+                ->setTransactionId($chargeId)
                 ->build(Transaction::TYPE_CAPTURE);
 
             $formattedAmount = $order->getBaseCurrency()->formatTxt($chargeAmount);

@@ -46,13 +46,7 @@ class VoidRequestBuilder implements BuilderInterface
         $paymentDO = $this->subjectReader->readPayment($buildSubject);
         $orderDO = $paymentDO->getOrder();
 
-        $chargePermissionId = $paymentDO->getPayment()->getAdditionalInformation('charge_permission_id');
-
-        // If we do not have a charge permission on the payment, try the first 3 sections of transaction ID
-        if (empty($chargePermissionId)) {
-            $transactionId = explode('-', $paymentDO->getPayment()->getAuthorizationTransaction()->getTxnId());
-            $chargePermissionId = implode('-', array_slice($transactionId, 0, 3));
-        }
+        $chargePermissionId = $paymentDO->getPayment()->getAuthorizationTransaction()->getTxnId();
 
         if ($orderDO) {
             $data = [
