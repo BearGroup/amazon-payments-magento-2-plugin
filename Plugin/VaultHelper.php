@@ -15,14 +15,43 @@
  */
 namespace Amazon\Pay\Plugin;
 
+use ParadoxLabs\Subscriptions\Helper\Vault;
+use ParadoxLabs\Subscriptions\Model\Service\Payment;
+use Magento\Vault\Api\Data\PaymentTokenInterface;
+use Magento\Framework\Registry;
+use Amazon\Pay\Gateway\Config\Config;
+
 class VaultHelper
 {
-    public function afterGetCardLabel($vault, $result)
-    {
-		if ($result == 'account XXXX-') {
-			$result = 'Amazon Pay';
+	// /**
+	//  * @var Registry $registry
+	//  */
+	// private Registry $registry;
+
+	// /**
+	//  * @param Payment $paymentService
+	//  */
+	// private Payment $paymentService;
+
+	// /**
+	//  * @param Registry $registry
+	//  * @param Payment $paymentService
+	//  */
+	// public function __construct(Registry $registry, Payment $paymentService)
+	// {
+	// 	$this->registry = $registry;
+	// 	$this->paymentService = $paymentService;
+	// }
+
+    public function aroundGetCardLabel(
+		Vault $vault,
+		callable $proceed,
+		PaymentTokenInterface $card
+	) {
+		if ($card->getPaymentMethodCode() === Config::CODE) {
+			return json_decode($card->getTokenDetails())->paymentPreferences[0]->paymentDescriptor;
 		}
 
-		return $result;
+		return $proceed($card);
     }
 }
