@@ -36,6 +36,9 @@ var config = {
             },
             'Magento_Checkout/js/view/shipping': {
                 'Amazon_Pay/js/view/shipping': true
+            },
+            'ParadoxLabs_Subscriptions/js/edit': {
+                'Amazon_Pay/js/view/subscriptions/edit': true
             }
         }
     },
