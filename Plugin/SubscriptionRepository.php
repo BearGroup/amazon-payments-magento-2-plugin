@@ -15,6 +15,8 @@
  */
 namespace Amazon\Pay\Plugin;
 
+use Amazon\Pay\Helper\SubscriptionHelper;
+
 class SubscriptionRepository
 {
    
@@ -40,18 +42,24 @@ class SubscriptionRepository
      */
     private $paymentTokenRepository;
 
+    /**
+     * @var SubscriptionHelper
+     */
+    private $helper;
+
     
     public function __construct(
         \Amazon\Pay\Model\Adapter\AmazonPayAdapter $amazonAdapter,
         \Magento\Quote\Api\CartRepositoryInterface $quoteRepository,
         \Magento\Vault\Api\PaymentTokenManagementInterface $paymentTokenManagement,
-        \Magento\Vault\Api\PaymentTokenRepositoryInterface $paymentTokenRepository
-
+        \Magento\Vault\Api\PaymentTokenRepositoryInterface $paymentTokenRepository,
+        SubscriptionHelper $helper
     ) {
         $this->amazonAdapter = $amazonAdapter;
         $this->quoteRepository = $quoteRepository;
         $this->paymentTokenManagement = $paymentTokenManagement;      
         $this->paymentTokenRepository = $paymentTokenRepository;
+        $this->helper = $helper;
     }
 
     /**
@@ -59,7 +67,6 @@ class SubscriptionRepository
      */
     public function afterSave($SubscriptionRepository, $subscription)
     {
-
         if ($subscription->getStatus() == 'canceled') {
             $quoteId = $subscription->getQuoteId();
             $quote = $this->quoteRepository->get($quoteId);
@@ -69,14 +76,7 @@ class SubscriptionRepository
             $token = $this->paymentTokenManagement->getByPublicHash($publicHash, $customerId);
 
             if ($token) {
-                $this->amazonAdapter->closeChargePermission(
-                    $quote->getStoreId(),
-                    $token->getGatewayToken(),
-                    'Canceled due to cancellation of subscription by the customer.'
-                );
-
-                $token->setIsActive(false);
-                $this->paymentTokenRepository->save($token);
+                $this->helper->cancelToken($quote, $token);
             }
         }
         

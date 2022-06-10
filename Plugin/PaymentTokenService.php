@@ -18,10 +18,25 @@ namespace Amazon\Pay\Plugin;
 use ParadoxLabs\Subscriptions\Model\Service\Payment;
 use Magento\Vault\Api\Data\PaymentTokenInterface;
 use Magento\Quote\Api\Data\CartInterface;
+use Magento\Quote\Model\Quote;
 use Amazon\Pay\Gateway\Config\Config;
+use Amazon\Pay\Helper\SubscriptionHelper;
 
 class PaymentTokenService
 {
+    /**
+     * @var SubscriptionHelper
+     */
+    private $helper;
+
+    /**
+     * @param SubscriptionHelper $helper
+     */
+    public function __construct(SubscriptionHelper $helper)
+    {
+        $this->helper = $helper;
+    }
+
     /**
      * @param Payment $paymentService
      * @param PaymentTokenInterface[] $cards
@@ -43,6 +58,27 @@ class PaymentTokenService
         return array_filter($cards, function ($card) {
             return $card->getPaymentMethodCode() !== Config::CODE;
         });
+    }
+
+    /**
+     * @param Payment $paymentService
+     * @param Quote $quote
+     * @param PaymentTokenInterface $card
+     * @param array $paymentData
+     * @return void
+     */
+    public function beforeUpdatePayment(
+        Payment $paymentService,
+        Quote $quote,
+        PaymentTokenInterface $card,
+        array $paymentData
+    ) {
+        if ($paymentService->getQuoteCard($quote)->getPaymentMethodCode() === Config::CODE
+            && $card->getPaymentMethodCode() !== Config::CODE) {
+            $this->helper->cancelToken($quote, $paymentService->getQuoteCard($quote));
+        }
+
+        return [$quote, $card, $paymentData];
     }
 }
 
