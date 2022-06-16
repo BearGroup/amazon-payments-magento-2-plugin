@@ -75,6 +75,11 @@ class AmazonPayAdapter
      */
     private $subscriptionManager;
 
+    /**
+     * @var \Amazon\Pay\Helper\SubscriptionHelper
+     */
+    private $subscriptionHelper;
+
 
     /**
      * AmazonPayAdapter constructor.
@@ -85,6 +90,7 @@ class AmazonPayAdapter
      * @param \Amazon\Pay\Helper\Data $amazonHelper
      * @param \Magento\Framework\App\ProductMetadataInterface $productMetadata
      * @param \Amazon\Pay\Model\Subscription\SubscriptionManager $subscriptionManager
+     * @param \Amazon\Pay\Helper\SubscriptionHelper $subscriptionHelper
      * @param \Amazon\Pay\Logger\Logger $logger
      * @param \Magento\Framework\UrlInterface $url
      * @param \Magento\Framework\App\Response\RedirectInterface $redirect
@@ -97,6 +103,7 @@ class AmazonPayAdapter
         \Amazon\Pay\Helper\Data $amazonHelper,
         \Magento\Framework\App\ProductMetadataInterface $productMetadata,
         \Amazon\Pay\Model\Subscription\SubscriptionManager $subscriptionManager,
+        \Amazon\Pay\Helper\SubscriptionHelper $subscriptionHelper,
         \Amazon\Pay\Logger\Logger $logger,
         \Magento\Framework\UrlInterface $url,
         \Magento\Framework\App\Response\RedirectInterface $redirect
@@ -108,6 +115,7 @@ class AmazonPayAdapter
         $this->amazonHelper = $amazonHelper;
         $this->productMetadata = $productMetadata;
         $this->subscriptionManager = $subscriptionManager;
+        $this->subscriptionHelper = $subscriptionHelper;
         $this->logger = $logger;
         $this->url = $url;
         $this->redirect = $redirect;
@@ -340,6 +348,10 @@ class AmazonPayAdapter
 
         if (isset($data['noteToBuyer'])) {
             $payload['merchantMetadata']['noteToBuyer'] = $data['noteToBuyer'];
+        }
+
+        if (isset($data['recurringMetadata'])) {
+            $payload['recurringMetadata'] = $data['recurringMetadata'];
         }
 
         $response = $this->clientFactory->create($storeId)->updateChargePermission($chargePermissionId, $payload);
@@ -663,23 +675,23 @@ class AmazonPayAdapter
 
         return $referer;
     }
-
-    protected function getRecurringMetadata($quote)
+    
+    public function getRecurringMetadata($quote)
     {
         foreach ($quote->getAllItems() as $item) {
             if ($this->subscriptionManager->isSubscription($item)) {
-                $frecuencyUnit = $this->subscriptionManager->getFrequencyUnit($item);
-                $frecuencyCount = $this->subscriptionManager->getFrequencyCount($item);
+                $frequencyUnit = $this->subscriptionManager->getFrequencyUnit($item);
+                $frequencyCount = $this->subscriptionManager->getFrequencyCount($item);
             }
         }
         return [
                 "frequency" => [
-                    "unit" => $frecuencyUnit,
-                    "value" => $frecuencyCount
+                    "unit" => $frequencyUnit,
+                    "value" => $frequencyCount
                 ]
             ];
     }
-    
+
     protected function getSignInUrl()
     {
         $signInUrl = $this->amazonConfig->getSignInResultUrlPath();

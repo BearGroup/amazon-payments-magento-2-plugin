@@ -3,6 +3,7 @@
 namespace Amazon\Pay\Helper;
 
 use Amazon\Pay\Model\Adapter\AmazonPayAdapter;
+use ParadoxLabs\Subscriptions\Model\Subscription;
 use Magento\Quote\Model\Quote;
 use Magento\Vault\Model\PaymentToken;
 use Magento\Vault\Model\PaymentTokenRepository;
@@ -31,6 +32,13 @@ class SubscriptionHelper
         $this->paymentTokenRepository = $paymentTokenRepository;
     }
 
+    /**
+     * Close charge permission and deactivate token when subscription is canceled.
+     *
+     * @param Quote $quote
+     * @param PaymentToken $token
+     * @return void
+     */
     public function cancelToken(Quote $quote, PaymentToken $token)
     {
         $this->amazonAdapter->closeChargePermission(
@@ -41,5 +49,23 @@ class SubscriptionHelper
 
         $token->setIsActive(false);
         $this->paymentTokenRepository->save($token);
+    }
+
+    public function hasShorterFrequency(array $first, array $second)
+    {
+        $unitMap = [
+            'day'   => 1,
+            'week'  => 2,
+            'month' => 3,
+            'year'  => 4
+        ];
+
+        // if ($unitMap[$first->getFrequencyUnit()] < $unitMap[$second->getFrequencyUnit()]) {
+        //     return true;
+        // } elseif ($unitMap[$first->getFrequencyUnit()] == $unitMap[$second->getFrequencyUnit()]) {
+        //     return $first->getFrequencyCount() > $second->getFrequencyCount();
+        // }
+
+        return false;
     }
 }

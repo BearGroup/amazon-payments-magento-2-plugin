@@ -168,9 +168,10 @@
     </virtualType>
     <virtualType name="AmazonPayVaultFacade" type="Magento\Vault\Model\Method\Vault">
         <arguments>
-            <argument name="code" xsi:type="const">Amazon\Pay\Gateway\Config\Config::VAULT_CODE</argument>
+            <argument name="config" xsi:type="object">AmazonPayVaultConfig</argument>
             <argument name="valueHandlerPool" xsi:type="object">AmazonPayVaultValueHandlerPool</argument>
             <argument name="vaultProvider" xsi:type="object">AmazonPayFacade</argument>
+            <argument name="code" xsi:type="const">Amazon\Pay\Gateway\Config\Config::VAULT_CODE</argument>
         </arguments>
     </virtualType>
 
@@ -509,6 +510,9 @@
     </type>
     <type name="ParadoxLabs\Subscriptions\Model\Service\Payment">
         <plugin name="amazon_pay_paradox_labs_available_tokens" type="Amazon\Pay\Plugin\PaymentTokenService" />
+    </type>
+    <type name="Magento\Checkout\Model\PaymentInformationManagement">
+        <plugin name="amazon_pay_existing_vault_token" type="Amazon\Pay\Plugin\RecurringChargePermissionUpdate" />
     </type>
 
     <type name="Magento\Checkout\CustomerData\Cart">
