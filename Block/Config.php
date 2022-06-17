@@ -64,6 +64,7 @@ class Config extends \Magento\Framework\View\Element\Template
             // deprecated - use is_amazon_signin_enabled instead
             'is_lwa_enabled'           => $this->isAmazonSignInEnabled(),
             'is_guest_checkout_enabled' => $this->amazonConfig->isGuestCheckoutEnabled(),
+            'has_restricted_products'  => $this->amazonHelper->hasRestrictedProducts()
         ];
 
         return $config;

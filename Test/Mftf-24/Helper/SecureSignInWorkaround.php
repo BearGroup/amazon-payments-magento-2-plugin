@@ -14,7 +14,7 @@ class SecureSignInWorkaround extends Helper
         $editAddressSelector,
         $addressIdSelector,
         $changePaymentSelector,
-        $usePaymentSelector
+        $changeAddressSelector
     ) {
         /** @var \Magento\FunctionalTestingFramework\Module\MagentoWebDriver $webDriver */
         $magentoWebDriver = $this->getModule('\Magento\FunctionalTestingFramework\Module\MagentoWebDriver');
@@ -25,7 +25,7 @@ class SecureSignInWorkaround extends Helper
                 $editAddressSelector,
                 $addressIdSelector,
                 $changePaymentSelector,
-                $usePaymentSelector,
+                $changeAddressSelector,
                 $magentoWebDriver
             ) {
                 // Do nothing here unless the new 'Continue as...' button is present
@@ -53,20 +53,21 @@ class SecureSignInWorkaround extends Helper
 
                     $addressId = WebDriverBy::cssSelector($addressIdSelector);
                     $changePayment = WebDriverBy::cssSelector($changePaymentSelector);
-                    $usePayment = WebDriverBy::cssSelector($usePaymentSelector);
+                    $changeAddress = WebDriverBy::cssSelector($changeAddressSelector);
                     $remoteWebDriver->wait(30, 100)->until(
                         WebDriverExpectedCondition::presenceOfElementLocated($addressId)
                     );
                     $remoteWebDriver->wait(30, 100)->until(
-                        WebDriverExpectedCondition::elementToBeClickable($changePayment)
+                        WebDriverExpectedCondition::elementToBeClickable($changeAddress)
                     );
                     $remoteWebDriver->wait(30, 100)->until(
-                        WebDriverExpectedCondition::presenceOfElementLocated($usePayment)
+                        WebDriverExpectedCondition::elementToBeClickable($changePayment)
                     );
                 }
             });
         } catch (\Exception $e) {
-            print_r($e->getMessage());
+            // Avoid out of memory error sometimes caused by print_r
+            // print_r($e->getMessage());
         }
     }
 }

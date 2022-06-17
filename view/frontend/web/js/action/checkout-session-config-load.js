@@ -22,32 +22,30 @@ define([
 ], function ($, _, remoteStorage, url, customerData) {
     'use strict';
 
-    var callbacks = [];
+    const storageKey = 'amzn-checkout-session-config';
+    $('.switcher-option').on('click', function () {
+        $.localStorage.remove(storageKey);
+    });
+
     var localStorage = null;
     var getLocalStorage = function () {
         if (localStorage === null) {
-            localStorage = $.initNamespaceStorage('amzn-checkout-session-config').localStorage;
+            localStorage = $.initNamespaceStorage(storageKey).localStorage;
         }
         return localStorage;
     };
-    return function (callback, forceReload = false) {
+    return function (callback, omitPayloads = true) {
         var cartId = customerData.get('cart')()['data_id'] || window.checkout.storeId;
         var config = getLocalStorage().get('config') || false;
-        if (forceReload
-            || cartId !== getLocalStorage().get('cart_id')
-            || typeof config.checkout_payload === 'undefined'
-            || !config.checkout_payload.includes(document.URL)) {
-            callbacks.push(callback);
-            if (callbacks.length == 1) {
-                remoteStorage.get(url.build('amazon_pay/checkout/config')).done(function (config) {
-                    getLocalStorage().set('cart_id', cartId);
-                    getLocalStorage().set('config', config);
-                    do {
-                        callbacks.shift()(config);
-                    } while (callbacks.length);
-                });
-            }
-        } else {
+        if (!config) {
+            remoteStorage.get(url.build(`amazon_pay/checkout/config?omit_payloads=${omitPayloads}`)).done(function (config) {
+                getLocalStorage().set('cart_id', cartId);
+                getLocalStorage().set('config', config);
+
+                callback(getLocalStorage().get('config'));
+            });
+        }
+        else {
             callback(getLocalStorage().get('config'));
         }
     };

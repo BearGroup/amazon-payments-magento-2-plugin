@@ -1,5 +1,33 @@
 # Change Log
 
+## 5.13.1
+* Fixed issue with invalid array reference if a transaction doesn’t have a charge permission
+* Fixed issue with GraphQL config query supporting omitPayloads
+* Fixed issue with switching stores to refresh the Amazon Pay button config
+
+## 5.13.0
+* Added Graphql support
+* Added endpoints to fetch individual config types
+* Change how buttons are rendered so they are not blocked waiting for config
+* Fixed an error when using the REST complete endpoint with a declined card
+* Updated some translations
+
+## 5.12.0
+* Change to display billing address for US/JP regions to match EU/UK
+* Fixed a regression with restricted categories
+* Fixed an issue where a quote tied to a canceled order couldn’t be re-used with Amazon Pay
+* Fixed an issue where the billing address would not be shown (thanks @ptylek!)
+* Fixed compatibility with jquery-migrate that doesn’t like self-closing tags
+* Updated some strings and translations
+
+## 5.11.1
+* Fixed an issue where autoloader is needed to detect version of phpseclib used
+
+## 5.11.0
+* Added compatibility with Adobe Commerce / Magento Open Source 2.4.4
+* Fixed an issue with email population
+* Updated validation on Private Key field to allow SANDBOX- or LIVE- prefixes (thanks @cmorrisonmvnt!)
+
 ## 5.10.0
 * Added signin REST endpoint
 * Fixed an issue that could occur when rendering the Amazon Pay button more than once
