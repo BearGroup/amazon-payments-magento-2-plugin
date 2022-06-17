@@ -60,11 +60,11 @@ class SubscriptionHelper
             'year'  => 4
         ];
 
-        // if ($unitMap[$first->getFrequencyUnit()] < $unitMap[$second->getFrequencyUnit()]) {
-        //     return true;
-        // } elseif ($unitMap[$first->getFrequencyUnit()] == $unitMap[$second->getFrequencyUnit()]) {
-        //     return $first->getFrequencyCount() > $second->getFrequencyCount();
-        // }
+        if ($unitMap[strtolower($first['unit'])] < $unitMap[strtolower($second['unit'])]) {
+            return true;
+        } elseif ($unitMap[strtolower($first['unit'])] == $unitMap[strtolower($second['unit'])]) {
+            return $first['value'] > $second['value'];
+        }
 
         return false;
     }
