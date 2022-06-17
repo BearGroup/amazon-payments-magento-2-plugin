@@ -23,26 +23,6 @@ use Amazon\Pay\Gateway\Config\Config;
 
 class VaultHelper
 {
-	// /**
-	//  * @var Registry $registry
-	//  */
-	// private Registry $registry;
-
-	// /**
-	//  * @param Payment $paymentService
-	//  */
-	// private Payment $paymentService;
-
-	// /**
-	//  * @param Registry $registry
-	//  * @param Payment $paymentService
-	//  */
-	// public function __construct(Registry $registry, Payment $paymentService)
-	// {
-	// 	$this->registry = $registry;
-	// 	$this->paymentService = $paymentService;
-	// }
-
     public function aroundGetCardLabel(
 		Vault $vault,
 		callable $proceed,

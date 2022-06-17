@@ -514,7 +514,10 @@
     <type name="Magento\Checkout\Model\PaymentInformationManagement">
         <plugin name="amazon_pay_existing_vault_token" type="Amazon\Pay\Plugin\RecurringChargePermissionUpdate" />
     </type>
-
+    <type name="Magento\Vault\Model\PaymentTokenRepository">
+        <plugin name="amazon_pay_token_delete" type="Amazon\Pay\Plugin\PaymentTokenRepository" />
+    </type>
+    
     <type name="Magento\Checkout\CustomerData\Cart">
         <plugin name="amazon_pay_customerdata_cart" type="Amazon\Pay\Plugin\CustomerData\Cart" />
     </type>
