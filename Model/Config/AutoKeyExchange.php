@@ -33,15 +33,13 @@ class AutoKeyExchange
     private $_spIds = [
         'USD' => 'AUGT0HMCLQVX1',
         'GBP' => 'A1BJXVS5F6XP',
-        'EUR' => 'A2ZAYEJU54T1BM',
-        'JPY' => 'A1MCJZEB1HY93J',
+        'EUR' => 'A2ZAYEJU54T1BM'
     ];
 
     private $_mapCurrencyRegion = [
         'EUR' => 'de',
         'USD' => 'us',
-        'GBP' => 'uk',
-        'JPY' => 'ja',
+        'GBP' => 'uk'
     ];
 
     /**
