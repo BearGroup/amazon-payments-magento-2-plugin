@@ -17,13 +17,13 @@ namespace Amazon\Pay\Plugin;
 
 use Amazon\Pay\Gateway\Config\Config;
 use ParadoxLabs\Subscriptions\Model\Source\Status;
+
 class SubscriptionRepository
 {
     /**
      * @var \Magento\Quote\Api\CartRepositoryInterface
      */
     private $quoteRepository;
-
 
     /**
      * @var \Magento\Vault\Api\PaymentTokenManagementInterface
@@ -36,8 +36,8 @@ class SubscriptionRepository
     private $helper;
 
     /**
-    * @var \Magento\Framework\Api\SearchCriteriaBuilder
-    */
+     * @var \Magento\Framework\Api\SearchCriteriaBuilder
+     */
     protected $searchCriteriaBuilder;
     
     public function __construct(
@@ -50,7 +50,7 @@ class SubscriptionRepository
     ) {
         $this->amazonAdapter = $amazonAdapter;
         $this->quoteRepository = $quoteRepository;
-        $this->paymentTokenManagement = $paymentTokenManagement;      
+        $this->paymentTokenManagement = $paymentTokenManagement;
         $this->paymentTokenRepository = $paymentTokenRepository;
         $this->helper = $helper;
         $this->searchCriteriaBuilder = $searchCriteriaBuilder;
@@ -61,7 +61,8 @@ class SubscriptionRepository
      */
     public function afterSave($SubscriptionRepository, $subscription)
     {
-        if ($subscription->getStatus() == Status::STATUS_CANCELED) {
+        $status = $subscription->getStatus();
+        if ($status === Status::STATUS_CANCELED || $status === Status::STATUS_PAYMENT_FAILED) {
             $quoteId = $subscription->getQuoteId();
             $quote = $this->quoteRepository->get($quoteId);
             $payment = $quote->getPayment();
@@ -71,21 +72,10 @@ class SubscriptionRepository
                 $publicHash = $payment->getAdditionalInformation('public_hash');
                 $token = $this->paymentTokenManagement->getByPublicHash($publicHash, $customerId);
 
-                $searchCriteria = $this->searchCriteriaBuilder->addFilter('customer_id', $customerId)
-                    ->addFilter('status', Status::STATUS_ACTIVE)
-                    ->create();
-
-                $activeSubscriptions = $SubscriptionRepository->getList($searchCriteria)
-                    ->getItems();
-                $amazonSubscriptions = array_filter($activeSubscriptions, function ($subscription) {
-                    return $subscription->getQuote()
-                        ->getPayment()
-                        ->getMethod() === Config::VAULT_CODE;
-                });
-
-                if ((empty($activeSubscriptions) || empty($amazonSubscriptions)) && $token) {
+                $subscriptionsPaidWithToken = $this->helper->getSubscriptionsPaidWithToken($token);
+                if (empty($subscriptionsPaidWithToken)) {
                     $this->helper->cancelToken($quote, $token);
-                }                
+                }
             }
         }
         

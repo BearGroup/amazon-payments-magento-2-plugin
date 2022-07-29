@@ -37,7 +37,7 @@ class RecurringChargePermissionUpdate
     private $cartRepository;
 
     /**
-     * @var AmazonAdapter
+     * @var AmazonPayAdapter
      */
     private $amazonAdapter;
 
@@ -68,14 +68,14 @@ class RecurringChargePermissionUpdate
     /**
      * Check to see if a stored AP token needs to have its recurring metadata updated
      * before using it for another recurring charge.
-     * 
+     *
      * @param PaymentInformationManagement $subject
      * @param  $cartId
      * @param PaymentInterface $paymentMethod
      * @param AddressInterface|null $billingAddress
      * @return array
      */
-    public function beforeSavePaymentInformationAndPlaceOrder (
+    public function beforeSavePaymentInformationAndPlaceOrder(
         PaymentInformationManagement $subject,
         $cartId,
         \Magento\Quote\Api\Data\PaymentInterface $paymentMethod,
@@ -92,7 +92,10 @@ class RecurringChargePermissionUpdate
                     ->getByPublicHash($paymentMethod->getAdditionalData()['public_hash'], $customerId)
                     ->getGatewayToken();
 
-                $chargePermission = $this->amazonAdapter->getChargePermission($quote->getStoreId(), $chargePermissionId);
+                $chargePermission = $this->amazonAdapter->getChargePermission(
+                    $quote->getStoreId(),
+                    $chargePermissionId
+                );
                 $newFrequency = $this->amazonAdapter->getRecurringMetadata($quote)['frequency'];
                 $oldFrequency = $chargePermission['recurringMetadata']['frequency'];
                 if ($this->subscriptionHelper->hasShorterFrequency($newFrequency, $oldFrequency)) {
@@ -108,7 +111,7 @@ class RecurringChargePermissionUpdate
                         'merchantReferenceId' => $quote->getReservedOrderId(),
                         'recurringMetadata' => [
                             'frequency' => $newFrequency
-                        ]   
+                        ]
                     ];
 
                     $this->amazonAdapter->updateChargePermission(

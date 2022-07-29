@@ -28,7 +28,7 @@ class PaymentTokenRepository
     /**
      * @var SubscriptionHelper
      */
-    private $subscriptionHelper;
+    private $helper;
 
     /**
      * @var SubscriptionRepository
@@ -36,21 +36,21 @@ class PaymentTokenRepository
     private $subscriptionRepository;
 
     /**
-    * @var SearchCriteriaBuilder
-    */
+     * @var SearchCriteriaBuilder
+     */
     protected $searchCriteriaBuilder;
 
     /**
-     * @param SubscriptionHelper $subscriptionHelper
+     * @param SubscriptionHelper $helper
      * @param SubscriptionRepository $subscriptionRepository
      * @param SearchCriteriaBuilder $searchCriteriaBuilder
      */
     public function __construct(
-        SubscriptionHelper $subscriptionHelper,
+        SubscriptionHelper $helper,
         SubscriptionRepository $subscriptionRepository,
         SearchCriteriaBuilder $searchCriteriaBuilder
     ) {
-        $this->subscriptionHelper = $subscriptionHelper;
+        $this->helper = $helper;
         $this->subscriptionRepository = $subscriptionRepository;
         $this->searchCriteriaBuilder = $searchCriteriaBuilder;
     }
@@ -62,25 +62,14 @@ class PaymentTokenRepository
     ) {
         if ($paymentToken->getPaymentMethodCode() === Config::CODE) {
             // Cancel associated AP subscriptions
-            $customerId = $paymentToken->getCustomerId();
-            $publicHash = $paymentToken->getPublicHash();
-            $vaultCode = Config::VAULT_CODE;
-            $searchCriteria = $this->searchCriteriaBuilder->addFilter('customer_id', $customerId)
-                ->addFilter('status', Status::STATUS_ACTIVE)
-                ->create();
+            $subscriptionsPaidWithToken = $this->helper->getSubscriptionsPaidWithToken($paymentToken);
 
-            $activeSubscriptions = $this->subscriptionRepository->getList($searchCriteria)
-                ->getItems();
-            $amazonSubscriptions = array_filter($activeSubscriptions, function ($subscription) use ($publicHash, $vaultCode) {
-                $quote = $subscription->getQuote();
-                return $quote->getPayment()
-                    ->getMethod() === $vaultCode
-                    && $quote->getPayment()->getAdditionalInformation()['public_hash'] === $publicHash;
-            });
-
-            $this->subscriptionHelper->cancelToken(reset($amazonSubscriptions)->getQuote(), $paymentToken);
-            foreach ($amazonSubscriptions as $amazonSubscription) {
-                $amazonSubscription->setStatus(Status::STATUS_CANCELED, 'Subscription canceled due to payment token deletion');
+            $this->helper->cancelToken(reset($subscriptionsPaidWithToken)->getQuote(), $paymentToken);
+            foreach ($subscriptionsPaidWithToken as $amazonSubscription) {
+                $amazonSubscription->setStatus(
+                    Status::STATUS_CANCELED,
+                    'Subscription canceled due to payment token deletion'
+                );
                 $this->subscriptionRepository->save($amazonSubscription);
             }
             

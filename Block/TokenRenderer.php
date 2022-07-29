@@ -19,23 +19,35 @@ use Magento\Vault\Block\AbstractTokenRenderer;
 use Magento\Vault\Api\Data\PaymentTokenInterface;
 use Amazon\Pay\Gateway\Config\Config;
 use Amazon\Pay\Model\AmazonConfig;
+use Amazon\Pay\Helper\SubscriptionHelper;
 use Magento\Framework\View\Element\Template\Context;
 
 class TokenRenderer extends AbstractTokenRenderer
 {
     /**
-     * @var AmazonConfig $amazonConfig
+     * @var AmazonConfig
      */
     private $amazonConfig;
+
+    /**
+     * @var SubscriptionHelper
+     */
+    private $helper;
 
     /**
      * @param Context $context
      * @param array $data
      * @param AmazonConfig $amazonConfig
+     * @param SubscriptionHelper $helper
      */
-    public function __construct(Context $context, array $data = [], AmazonConfig $amazonConfig)
-    {
+    public function __construct(
+        Context $context,
+        array $data = [],
+        AmazonConfig $amazonConfig,
+        SubscriptionHelper $helper
+    ) {
         $this->amazonConfig = $amazonConfig;
+        $this->helper = $helper;
         parent::__construct($context, $data);
     }
 
@@ -76,7 +88,6 @@ class TokenRenderer extends AbstractTokenRenderer
 
     public function getPaymentDescriptor()
     {
-        return json_decode($this->getToken()->getTokenDetails())
-            ->paymentPreferences[0]->paymentDescriptor;
+        return $this->helper->getTokenPaymentDescriptor($this->getToken());
     }
 }

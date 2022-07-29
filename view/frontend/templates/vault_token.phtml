@@ -45,7 +45,8 @@ $ccNumberView = $block->escapeHtml($block->getPaymentDescriptor());
                             "modalClass": "my-credit-cards-popup",
                             "toggleEvent": "click",
                             "title": "<?= $block->escapeHtmlAttr(__('Delete')) ?>",
-                            "content": "Are you sure you want to delete this Amazon payment method? All associated subscriptions will be canceled."
+                            "content": "<?= $block->escapeHtmlAttr(__('Are you sure you want to delete this Amazon ' .
+                                'payment method? All associated subscriptions will be canceled.')) ?>"
                         }
                     }'>
                 <span><?= $block->escapeHtml(__('Delete')) ?></span>

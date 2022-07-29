@@ -16,22 +16,34 @@
 namespace Amazon\Pay\Plugin;
 
 use ParadoxLabs\Subscriptions\Helper\Vault;
-use ParadoxLabs\Subscriptions\Model\Service\Payment;
 use Magento\Vault\Api\Data\PaymentTokenInterface;
-use Magento\Framework\Registry;
 use Amazon\Pay\Gateway\Config\Config;
+use Amazon\Pay\Helper\SubscriptionHelper;
 
 class VaultHelper
 {
-    public function aroundGetCardLabel(
-		Vault $vault,
-		callable $proceed,
-		PaymentTokenInterface $card
-	) {
-		if ($card->getPaymentMethodCode() === Config::CODE) {
-			return json_decode($card->getTokenDetails())->paymentPreferences[0]->paymentDescriptor;
-		}
+    /**
+     * @var SubscriptionHelper
+     */
+    private $helper;
 
-		return $proceed($card);
+    /**
+     * @param SubscriptionHelper $helper
+     */
+    public function __construct(SubscriptionHelper $helper)
+    {
+        $this->helper = $helper;
+    }
+
+    public function aroundGetCardLabel(
+        Vault $vault,
+        callable $proceed,
+        PaymentTokenInterface $card
+    ) {
+        if ($card->getPaymentMethodCode() === Config::CODE) {
+            return $this->helper->getTokenPaymentDescriptor($card);
+        }
+
+        return $proceed($card);
     }
 }

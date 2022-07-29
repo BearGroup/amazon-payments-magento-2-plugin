@@ -21,6 +21,7 @@ use Magento\Quote\Api\Data\CartInterface;
 use Magento\Quote\Model\Quote;
 use Amazon\Pay\Gateway\Config\Config;
 use Amazon\Pay\Helper\SubscriptionHelper;
+use Amazon\Pay\Model\Adapter\AmazonPayAdapter;
 
 class PaymentTokenService
 {
@@ -30,11 +31,20 @@ class PaymentTokenService
     private $helper;
 
     /**
-     * @param SubscriptionHelper $helper
+     * @var AmazonPayAdapter
      */
-    public function __construct(SubscriptionHelper $helper)
-    {
+    private $amazonAdapter;
+
+    /**
+     * @param SubscriptionHelper $helper
+     * @param AmazonPayAdapter $amazonAdapter
+     */
+    public function __construct(
+        SubscriptionHelper $helper,
+        AmazonPayAdapter $amazonAdapter
+    ) {
         $this->helper = $helper;
+        $this->amazonAdapter = $amazonAdapter;
     }
 
     /**
@@ -47,12 +57,31 @@ class PaymentTokenService
         Payment $paymentService,
         $cards,
         CartInterface $quote
-	) {
+    ) {
         if ($quote->getPayment()->getMethod() === Config::VAULT_CODE) {
-            return array_filter($cards, function ($card) use ($paymentService, $quote) {
-                return $card->getPaymentMethodCode() !== Config::CODE 
-                    || $card->getId() === $paymentService->getQuoteCard($quote)->getId();
+            // Only show the token associated with this subscription if the customer has multiple
+            // AP tokens using the same card
+            $filteredCards = array_filter($cards, function ($card) use ($paymentService, $quote) {
+                return $card->getId() === $paymentService->getQuoteCard($quote)->getId();
             });
+            $paymentDescriptors[] = $this->helper->getTokenPaymentDescriptor(reset($filteredCards));
+
+            // If the customer has multiple AP tokens using a different card, only display one
+            // entry per card
+            foreach ($cards as $card) {
+                if ($card->getPaymentMethodCode() === Config::CODE) {
+                    $currentPaymentDescriptor = $this->helper->getTokenPaymentDescriptor($card);
+
+                    if (!in_array($currentPaymentDescriptor, $paymentDescriptors)) {
+                        $filteredCards[] = $card;
+                        $paymentDescriptors[] = $currentPaymentDescriptor;
+                    }
+                } else {
+                    $filteredCards[] = $card;
+                }
+            }
+
+            return $filteredCards;
         }
 
         return array_filter($cards, function ($card) {
@@ -65,7 +94,7 @@ class PaymentTokenService
      * @param Quote $quote
      * @param PaymentTokenInterface $card
      * @param array $paymentData
-     * @return void
+     * @return mixed
      */
     public function beforeUpdatePayment(
         Payment $paymentService,
@@ -73,12 +102,74 @@ class PaymentTokenService
         PaymentTokenInterface $card,
         array $paymentData
     ) {
-        if ($paymentService->getQuoteCard($quote)->getPaymentMethodCode() === Config::CODE
-            && $card->getPaymentMethodCode() !== Config::CODE) {
-            $this->helper->cancelToken($quote, $paymentService->getQuoteCard($quote));
+        $previousToken = $paymentService->getQuoteCard($quote);
+        if ($previousToken->getPaymentMethodCode() === Config::CODE) {
+            // Check previous token later in afterUpdatePayment
+            $paymentData[] = $previousToken;
+
+            // If moving to another AP method, update its charge permission if the subscriptions's
+            // frequency is shorter than the recurring metadata associated with it
+            if ($card->getPaymentMethodCode() === Config::CODE) {
+                $toChargePermission = $this->amazonAdapter->getChargePermission(
+                    $quote->getStoreId(),
+                    $card->getGatewayToken()
+                );
+                $oldFrequency = $toChargePermission['recurringMetadata']['frequency'];
+                $newFrequency = $this->amazonAdapter->getRecurringMetadata($quote)['frequency'];
+
+                if ($this->helper->hasShorterFrequency($newFrequency, $oldFrequency)) {
+                    $merchantReferenceId = $this->amazonAdapter->getChargePermission(
+                        $quote->getStoreId(),
+                        $paymentService->getQuoteCard($quote)->getGatewayToken()
+                    )['merchantMetadata']['merchantReferenceId'];
+
+                    $payload = [
+                        'merchantReferenceId' => $merchantReferenceId,
+                        'recurringMetadata' => [
+                            'frequency' => $newFrequency
+                        ]
+                    ];
+
+                    $this->amazonAdapter->updateChargePermission(
+                        $quote->getStoreId(),
+                        $card->getGatewayToken(),
+                        $payload
+                    );
+                }
+            }
         }
 
         return [$quote, $card, $paymentData];
     }
-}
 
+    /**
+     * @param Payment $paymentService
+     * @param null $result
+     * @param Quote $quote
+     * @param PaymentTokenInterface $card
+     * @param array $paymentData
+     * @return void
+     */
+    public function afterUpdatePayment(
+        Payment $paymentService,
+        $result,
+        Quote $quote,
+        PaymentTokenInterface $card,
+        array $paymentData
+    ) {
+        // Delete the previous token if this was the last subscription it was used for
+        if (!empty($paymentData)) {
+            foreach ($paymentData as $data) {
+                if ($data instanceof \Magento\Vault\Model\PaymentToken
+                    && $data->getPaymentMethodCode() === Config::CODE) {
+                    $subscriptionsPaidWithToken = $this->helper->getSubscriptionsPaidWithToken($data);
+                    if (empty($subscriptionsPaidWithToken)) {
+                        $this->helper->cancelToken($quote, $data);
+                    }
+                }
+            }
+        }
+
+        return $result;
+    }
+}
