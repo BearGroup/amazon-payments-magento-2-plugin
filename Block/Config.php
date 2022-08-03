@@ -58,6 +58,7 @@ class Config extends \Magento\Framework\View\Element\Template
         $config = [
             'region'                   => $this->amazonConfig->getRegion(),
             'code'                     => \Amazon\Pay\Gateway\Config\Config::CODE,
+            'vault_code'               => \Amazon\Pay\Gateway\Config\Config::VAULT_CODE,
             'is_method_available'      => $this->amazonConfig->isPayButtonAvailableAsPaymentMethod(),
             'is_pay_only'              => $this->amazonHelper->isPayOnly(),
             'is_lwa_enabled'            => $this->isLwaEnabled(),

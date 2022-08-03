@@ -39,7 +39,7 @@ define([
 
                     confirmation({
                         title: $.mage.__('Switching from Stored Amazon Pay Method'),
-                        content: $.mage.__(`If this is your only subscription using "${this.options.paymentMethodLabel}", it will be deleted from your stored payment methods and the charge will be closed. Is this OK?`),
+                        content: $.mage.__(`If this is your only subscription using "${this.options.paymentMethodLabel}", it will be deleted from your stored payment methods. Is this OK?`),
                         actions: {
                             confirm: function () {
                                 self.element.find('.action.save.primary').unbind('click').click();
