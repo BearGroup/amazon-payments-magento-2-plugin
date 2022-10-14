@@ -29,13 +29,13 @@ define([
             return storage;
         };
 
-    var isLwaEnabled = amazonPayConfig.getValue('is_lwa_enabled');
+    var isAmazonSignInEnabled = amazonPayConfig.getValue('is_amazon_signin_enabled');
     var isGuestCheckoutEnabled = amazonPayConfig.getValue('is_guest_checkout_enabled');
     var isMulticurrencyEnabled = amazonPayConfig.getValue('is_multicurrency_enabled');
 
     return {
         isEnabled: isEnabled,
-        isLwaEnabled: isLwaEnabled,
+        isAmazonSignInEnabled: isAmazonSignInEnabled,
         isGuestCheckoutEnabled: isGuestCheckoutEnabled,
         isMulticurrencyEnabled: isMulticurrencyEnabled,
 

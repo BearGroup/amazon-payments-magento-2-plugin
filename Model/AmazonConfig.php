@@ -838,7 +838,7 @@ class AmazonConfig
     /*
      * @return bool
      */
-    public function isLwaEnabled($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
+    public function isAmazonSignInEnabled($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
     {
         if (!$this->isEnabled()) {
             return false;
@@ -849,7 +849,7 @@ class AmazonConfig
         }
 
         return $this->scopeConfig->isSetFlag(
-            'payment/amazon_payment_v2/lwa_enabled',
+            'payment/amazon_payment_v2/amazon_signin_enabled',
             $scope,
             $scopeCode
         );

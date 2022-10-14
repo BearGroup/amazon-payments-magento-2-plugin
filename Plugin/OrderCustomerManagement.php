@@ -72,7 +72,7 @@ class OrderCustomerManagement
      */
     public function afterCreate(OrderCustomerManagementInterface $subject, $result, $orderId)
     {
-        if ($this->amazonConfig->isLwaEnabled()) {
+        if ($this->amazonConfig->isAmazonSignInEnabled()) {
             $paymentMethodName = $this->orderRepository->get($orderId)->getPayment()->getMethod();
             $isAmazonPayment   = $paymentMethodName === Config::CODE;
             $amazonCustomer    = $this->loginSessionHelper->getAmazonCustomer();

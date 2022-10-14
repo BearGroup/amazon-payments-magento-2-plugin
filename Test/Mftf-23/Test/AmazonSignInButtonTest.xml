@@ -12,7 +12,7 @@
 
         <before>
             <createData entity="SimpleTwo" stepKey="createSimpleProduct"/>
-            <createData entity="SampleAmazonPaymentConfigLwa" stepKey="SampleAmazonPaymentConfigLwa"/>
+            <createData entity="SampleAmazonPaymentConfigAmazonSignIn" stepKey="SampleAmazonPaymentConfigAmazonSignIn"/>
             <magentoCLI command="cache:flush" stepKey="flushCache"/>
         </before>
 

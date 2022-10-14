@@ -60,7 +60,9 @@ class Config extends \Magento\Framework\View\Element\Template
             'code'                     => \Amazon\Pay\Gateway\Config\Config::CODE,
             'is_method_available'      => $this->amazonConfig->isPayButtonAvailableAsPaymentMethod(),
             'is_pay_only'              => $this->amazonHelper->isPayOnly(),
-            'is_lwa_enabled'            => $this->isLwaEnabled(),
+            'is_amazon_signin_enabled' => $this->isAmazonSignInEnabled(),
+            // deprecated - use is_amazon_signin_enabled instead
+            'is_lwa_enabled'           => $this->isAmazonSignInEnabled(),
             'is_guest_checkout_enabled' => $this->amazonConfig->isGuestCheckoutEnabled(),
             'has_restricted_products'   => $this->amazonHelper->hasRestrictedProducts(),
             'is_multicurrency_enabled'     => $this->amazonConfig->multiCurrencyEnabled()
@@ -80,8 +82,8 @@ class Config extends \Magento\Framework\View\Element\Template
     /**
      * @return bool
      */
-    public function isLwaEnabled()
+    public function isAmazonSignInEnabled()
     {
-        return $this->amazonConfig->isLwaEnabled();
+        return $this->amazonConfig->isAmazonSignInEnabled();
     }
 }

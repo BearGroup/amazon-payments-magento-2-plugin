@@ -39,7 +39,7 @@ class Checkout extends \Amazon\Pay\Controller\Login
                 $checkoutSessionId
             );
 
-            if (!$this->amazonConfig->isLwaEnabled()) {
+            if (!$this->amazonConfig->isAmazonSignInEnabled()) {
                 $userInfo = $checkoutSession['buyer'];
                 if ($userInfo && isset($userInfo['email'])) {
                     $userEmail = $userInfo['email'];

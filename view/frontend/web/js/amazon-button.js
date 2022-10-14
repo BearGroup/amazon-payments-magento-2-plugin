@@ -269,7 +269,7 @@ define([
         canCheckoutWithAmazon = false;
 
     // to use Amazon Pay: customer needs to be logged in, or guest checkout allowed, or Amazon Sign-in enabled
-    if (customer().firstname || amazonStorage.isGuestCheckoutEnabled || amazonStorage.isLwaEnabled) {
+    if (customer().firstname || amazonStorage.isGuestCheckoutEnabled || amazonStorage.isAmazonSignInEnabled) {
         canCheckoutWithAmazon = true;
     }
 
@@ -278,7 +278,7 @@ define([
     } else {
         return function(config, element) {
             customer.subscribe(function() {
-                if (customer().firstname || amazonStorage.isGuestCheckoutEnabled || amazonStorage.isLwaEnabled) {
+                if (customer().firstname || amazonStorage.isGuestCheckoutEnabled || amazonStorage.isAmazonSignInEnabled) {
                     $(element).AmazonButton();
                 }
             });

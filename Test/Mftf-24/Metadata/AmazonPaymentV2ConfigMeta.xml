@@ -42,7 +42,7 @@
                     </object>
                     <object key="options" dataType="amazon_payment_config">
                         <object key="fields" dataType="amazon_payment_config">
-                            <object key="v2_lwa_enabled" dataType="lwa_enabled">
+                            <object key="v2_amazon_signin_enabled" dataType="amazon_signin_enabled">
                                 <field key="value">string</field>
                             </object>
                         </object>

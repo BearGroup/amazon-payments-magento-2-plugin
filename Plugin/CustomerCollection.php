@@ -55,7 +55,7 @@ class CustomerCollection
         $condition = null,
         $joinType = 'inner'
     ) {
-        if ($this->amazonConfig->isLwaEnabled() && is_array($attribute)) {
+        if ($this->amazonConfig->isAmazonSignInEnabled() && is_array($attribute)) {
             $attribute = $this->addAmazonIdFilter($attribute, $collection);
 
             if (0 === count($attribute)) {

@@ -8,7 +8,7 @@ use Magento\FunctionalTestingFramework\Helper\Helper;
 
 class SignInWithAmazon extends Helper
 {
-    public function clickSignInWithAmazon($siwaLocator)
+    public function clickSignInWithAmazon($amazonSignInLocator)
     {
         /** @var \Magento\FunctionalTestingFramework\Module\MagentoWebDriver $webDriver */
         $webDriver = $this->getModule('\Magento\FunctionalTestingFramework\Module\MagentoWebDriver');
@@ -17,13 +17,13 @@ class SignInWithAmazon extends Helper
         try {
             $webDriver->waitForJS("
                 try {
-                    return !!document.querySelector('${siwaLocator}')
+                    return !!document.querySelector('${amazonSignInLocator}')
                         .shadowRoot
                         .querySelector('div > div.amazonpay-button-view1.amazonpay-button-view1-gold');
                 } catch (err) {
                     return false;
                 }", $waitTime);
-            $webDriver->click($siwaLocator);
+            $webDriver->click($amazonSignInLocator);
         } catch (\Exception $e) {
             // Avoid out of memory error sometimes caused by print_r
             // print_r($e);

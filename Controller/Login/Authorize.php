@@ -26,7 +26,7 @@ class Authorize extends \Amazon\Pay\Controller\Login
      */
     public function execute()
     {
-        if (!$this->amazonConfig->isLwaEnabled()) {
+        if (!$this->amazonConfig->isAmazonSignInEnabled()) {
             throw new NotFoundException(__('Action unavailable'));
         }
 
