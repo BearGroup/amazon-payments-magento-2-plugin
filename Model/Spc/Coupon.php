@@ -49,7 +49,7 @@ class Coupon implements CouponInterface
         StoreInterface $store,
         CartRepositoryInterface $cartRepository,
         AmazonPayAdapter $amazonPayAdapter,
-        Cart $cartHelper
+        Cart $cartHelper,
         CheckoutSession $checkoutSessionHelper
     )
     {

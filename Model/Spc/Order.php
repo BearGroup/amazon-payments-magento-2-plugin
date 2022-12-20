@@ -40,15 +40,12 @@ class Order implements OrderInterface
     protected $orderRepository;
 
     /**
-<<<<<<< HEAD
-     * @param StoreInterface $store
-=======
      * @var CheckoutSession
      */
     protected $checkoutSessionHelper;
 
     /**
->>>>>>> bg/spc-shipping-method-errors
+     * @param StoreInterface $store
      * @param CartRepositoryInterface $cartRepository
      * @param AmazonPayAdapter $amazonPayAdapter
      * @param Cart $cartHelper
