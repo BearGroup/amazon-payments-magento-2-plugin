@@ -6,6 +6,8 @@ use Amazon\Pay\Api\Spc\Response\AmountInterface;
 use Amazon\Pay\Api\Spc\Response\AmountInterfaceFactory;
 use Amazon\Pay\Api\Spc\Response\CartDetailsInterface;
 use Amazon\Pay\Api\Spc\Response\CartDetailsInterfaceFactory;
+use Amazon\Pay\Api\Spc\Response\CreditInterface;
+use Amazon\Pay\Api\Spc\Response\CreditInterfaceFactory;
 use Amazon\Pay\Api\Spc\Response\DeliveryOptionInterface;
 use Amazon\Pay\Api\Spc\Response\DeliveryOptionInterfaceFactory;
 use Amazon\Pay\Api\Spc\Response\LineItemInterface;
@@ -92,6 +94,11 @@ class Cart
     protected $responseFactory;
 
     /**
+     * @var CreditInterfaceFactory
+     */
+    protected $creditFactory;
+
+    /**
      * @var Logger
      */
     protected $logger;
@@ -109,6 +116,7 @@ class Cart
      * @param LineItemInterfaceFactory $lineItemFactory
      * @param NameValueInterfaceFactory $nameValueFactory
      * @param ResponseInterfaceFactory $responseFactory
+     * @param CreditInterfaceFactory $creditFactory
      * @param Logger $logger
      */
     public function __construct(
@@ -124,6 +132,7 @@ class Cart
         LineItemInterfaceFactory $lineItemFactory,
         NameValueInterfaceFactory $nameValueFactory,
         ResponseInterfaceFactory $responseFactory,
+        CreditInterfaceFactory $creditFactory,
         Logger $logger
     )
     {
@@ -139,6 +148,7 @@ class Cart
         $this->lineItemFactory = $lineItemFactory;
         $this->nameValueFactory = $nameValueFactory;
         $this->responseFactory = $responseFactory;
+        $this->creditFactory = $creditFactory;
         $this->logger = $logger;
     }
 
@@ -166,6 +176,10 @@ class Cart
         // Get applied coupons
         $coupons = $this->getCoupons($quote);
 
+        // Get applied credit
+        $credits = $this->getCredits($quote);
+        $creditTotal = $this->getCreditTotal($quote);
+
         // Create response object
         /** @var $cartDetails CartDetailsInterface */
         $cartDetails = $this->cartDetailsFactory->create();
@@ -173,6 +187,7 @@ class Cart
             ->setLineItems($lineItems)
             ->setDeliveryOptions($deliveryOptions)
             ->setCoupons($coupons)
+            ->setCredits($credits)
             ->setCartLanguage($cartLanguage)
             ->setTotalShippingAmount(
                 $this->getAmountObject(
@@ -182,6 +197,7 @@ class Cart
             )
             ->setTotalBaseAmount($this->getAmountObject($totalBaseAmount, $currencyCode))
             ->setTotalTaxAmount($this->getAmountObject($quote->getShippingAddress()->getTaxAmount(), $currencyCode))
+            ->setTotalCreditAmount($this->getAmountObject($creditTotal, $currencyCode))
             ->setTotalChargeAmount($this->getAmountObject($quote->getGrandTotal(), $currencyCode))
             ->setCheckoutSessionId($checkoutSessionId);
 
@@ -340,6 +356,76 @@ class Cart
         }
 
         return [];
+    }
+
+    /**
+     * @param $quote
+     * @return array
+     */
+    protected function getCredits($quote)
+    {
+        /** @var \Magento\Quote\Model\Quote $quote */
+
+        $credits = [];
+
+        if ($quote->getGiftCards()) {
+            foreach (json_decode($quote->getGiftCards(), true) as $giftCard) {
+                // The gift card is saved as i: id, c: code, a: amount, ba: base amount
+                $credits[] = $this->getCreditObject(CreditInterface::GIFT_CARD_CODE, $giftCard['c'], $giftCard['a']);
+            }
+        }
+
+        if ((float)$quote->getCustomerBalanceAmountUsed()) {
+            $credits[] = $this->getCreditObject(CreditInterface::STORE_CREDIT_CODE, '', $quote->getCustomerBalanceAmountUsed());
+        }
+
+        if ((float)$quote->getRewardCurrencyAmount()) {
+            $credits[] = $this->getCreditObject(CreditInterface::REWARDS_CODE, '', $quote->getRewardCurrencyAmount());
+        }
+
+        return $credits;
+    }
+
+    /**
+     * @param $quote
+     * @return int
+     */
+    protected function getCreditTotal($quote)
+    {
+        return ($quote->getGiftCardsAmount() ?? 0)
+            + ($quote->getCustomerBalanceAmountUsed() ?? 0)
+            + ($quote->getRewardCurrencyAmount() ?? 0);
+    }
+
+    /**
+     * @param $type
+     * @param $code
+     * @param $amount
+     * @return mixed
+     */
+    protected function getCreditObject($type, $code, $amount)
+    {
+        $object = $this->creditFactory->create();
+
+        switch ($type) {
+            case CreditInterface::GIFT_CARD_CODE:
+                $label = CreditInterface::GIFT_CARD_LABEL;
+                break;
+            case CreditInterface::STORE_CREDIT_CODE:
+                $label = CreditInterface::STORE_CREDIT_LABEL;
+                break;
+            case CreditInterface::REWARDS_CODE:
+                $label = CreditInterface::REWARDS_LABEL;
+                break;
+            default:
+                $label = '';
+                break;
+        }
+
+        return $object->setType($type)
+            ->setLabel($label)
+            ->setCode($code)
+            ->setAmount($amount);
     }
 
     /**

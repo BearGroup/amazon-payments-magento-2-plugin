@@ -25,6 +25,11 @@ interface CartDetailsInterface
     public function getCoupons();
 
     /**
+     * @return \Amazon\Pay\Api\Spc\Response\CreditInterface[]
+     */
+    public function getCredits();
+
+    /**
      * @return string
      */
     public function getCartLanguage();
@@ -43,6 +48,11 @@ interface CartDetailsInterface
      * @return \Amazon\Pay\Api\Spc\Response\AmountInterface
      */
     public function getTotalTaxAmount();
+
+    /**
+     * @return \Amazon\Pay\Api\Spc\Response\AmountInterface
+     */
+    public function getTotalCreditAmount();
 
     /**
      * @return \Amazon\Pay\Api\Spc\Response\AmountInterface
@@ -79,6 +89,12 @@ interface CartDetailsInterface
     public function setCoupons(array $coupons);
 
     /**
+     * @param \Amazon\Pay\Api\Spc\Response\CreditInterface[] $credits
+     * @return $this
+     */
+    public function setCredits(array $credits);
+
+    /**
      * @param string $cartLanguage
      * @return $this
      */
@@ -101,6 +117,12 @@ interface CartDetailsInterface
      * @return $this
      */
     public function setTotalTaxAmount(AmountInterface $amount);
+
+    /**
+     * @param \Amazon\Pay\Api\Spc\Response\AmountInterface $amount
+     * @return $this
+     */
+    public function setTotalCreditAmount(AmountInterface $amount);
 
     /**
      * @param \Amazon\Pay\Api\Spc\Response\AmountInterface $amount

@@ -5,10 +5,12 @@ namespace Amazon\Pay\Model\Spc;
 use Amazon\Pay\Api\Spc\CouponInterface;
 use Amazon\Pay\Helper\Spc\CheckoutSession;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\ObjectManagerInterface;
 use Magento\Framework\Phrase;
 use Magento\Quote\Api\CartRepositoryInterface;
 use Amazon\Pay\Helper\Spc\Cart;
 use Magento\Store\Api\Data\StoreInterface;
+use Magento\Support\Model\Report\Group\Modules\Modules;
 
 class Coupon implements CouponInterface
 {
@@ -28,28 +30,65 @@ class Coupon implements CouponInterface
     protected $cartHelper;
 
     /**
-    /**
      * @var CheckoutSession
      */
     protected $checkoutSessionHelper;
+
+    /**
+     * @var Modules
+     */
+    protected $modules;
+
+    /**
+     * @var ObjectManagerInterface
+     */
+    protected $objectManager;
+
+    /**
+     * @var mixed|null
+     */
+    protected $giftCardAccountManagement = null;
+
+    /**
+     * @var mixed|null
+     */
+    protected $giftCardAccount = null;
 
     /**
      * @param StoreInterface $store
      * @param CartRepositoryInterface $cartRepository
      * @param Cart $cartHelper
      * @param CheckoutSession $checkoutSessionHelper
+     * @param Modules $modules
+     * @param ObjectManagerInterface $objectManager
      */
     public function __construct(
         StoreInterface $store,
         CartRepositoryInterface $cartRepository,
         Cart $cartHelper,
-        CheckoutSession $checkoutSessionHelper
+        CheckoutSession $checkoutSessionHelper,
+        Modules $modules,
+        ObjectManagerInterface $objectManager
     )
     {
         $this->store = $store;
         $this->cartRepository = $cartRepository;
         $this->cartHelper = $cartHelper;
         $this->checkoutSessionHelper = $checkoutSessionHelper;
+        $this->modules = $modules;
+        $this->objectManager = $objectManager;
+
+
+        // Check it Magento's gift card account module is enabled
+        if ($this->modules->isModuleEnabled('Magento_GiftCardAccount')) {
+            $this->giftCardAccountManagement = $this->objectManager->create(
+                \Magento\GiftCardAccount\Model\Service\GiftCardAccountManagement::class
+            );
+
+            $this->giftCardAccount = $this->objectManager->create(
+                \Magento\GiftCardAccount\Api\Data\GiftCardAccountInterface::class
+            );
+        }
     }
 
     /**
@@ -78,6 +117,10 @@ class Coupon implements CouponInterface
         // Get checkout session for verification
         if ($cartDetails && $checkoutSessionId) {
             if ($this->checkoutSessionHelper->confirmCheckoutSession($quote, $cartDetails, $checkoutSessionId)) {
+                // fail flags
+                $couponFailed = false;
+                $giftCardFailed = false;
+
                 // Only grabbing the first one, as Magento only accepts one coupon code
                 if (isset($cartDetails['coupons'][0]['coupon_code'])) {
                     $couponCode = $cartDetails['coupons'][0]['coupon_code'];
@@ -94,9 +137,33 @@ class Coupon implements CouponInterface
                             'SPC Coupon: CouponNotApplicable - The coupon could not be applied to the cart. CartId: ' . $cartId . ' - ', $cartDetails
                         );
 
-                        throw new \Magento\Framework\Webapi\Exception(
-                            new Phrase("The coupon code '". $couponCode ."' does not apply"), "CouponNotApplicable", 400
-                        );
+                        $couponFailed = true;
+                    }
+
+                    // Attempt to set gift card with Magento's gift card features
+                    if ($this->giftCardAccountManagement) {
+                        try {
+                            $giftCardAccount = $this->giftCardAccount;
+                            $giftCardAccount->setGiftCards([$couponCode]);
+                            $this->giftCardAccountManagement->saveByQuoteId($quote->getId(), $giftCardAccount);
+                        } catch (\Exception $e) {
+                            $giftCardFailed = true;
+                        }
+
+                        // check to see if both failed
+                        if ($couponFailed && $giftCardFailed) {
+                            throw new \Magento\Framework\Webapi\Exception(
+                                new Phrase("The code '" . $couponCode . "' does not apply as a coupon or gift card"), "CouponNotApplicable", 400
+                            );
+                        }
+                    }
+                    // if no gift card feature, check on failure of coupon only
+                    else {
+                        if ($couponFailed) {
+                            throw new \Magento\Framework\Webapi\Exception(
+                                new Phrase("The code '" . $couponCode . "' does not apply as a coupon code"), "CouponNotApplicable", 400
+                            );
+                        }
                     }
                 }
             }

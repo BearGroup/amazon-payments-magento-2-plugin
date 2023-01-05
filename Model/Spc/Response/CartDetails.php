@@ -46,6 +46,14 @@ class CartDetails extends DataObject implements CartDetailsInterface
     /**
      * @inheritDoc
      */
+    public function getCredits()
+    {
+        return $this->_getData('credits');
+    }
+
+    /**
+     * @inheritDoc
+     */
     public function getCartLanguage()
     {
         return $this->_getData('cart_language');
@@ -73,6 +81,14 @@ class CartDetails extends DataObject implements CartDetailsInterface
     public function getTotalTaxAmount()
     {
         return $this->_getData('total_tax_amount');
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function getTotalCreditAmount()
+    {
+        return $this->_getData('total_credit_amount');
     }
 
     /**
@@ -126,6 +142,14 @@ class CartDetails extends DataObject implements CartDetailsInterface
     /**
      * @inheritDoc
      */
+    public function setCredits(array $credits)
+    {
+        return $this->setData('credits', $credits);
+    }
+
+    /**
+     * @inheritDoc
+     */
     public function setCartLanguage(string $cartLanguage)
     {
         return $this->setData('cart_language', $cartLanguage);
@@ -153,6 +177,14 @@ class CartDetails extends DataObject implements CartDetailsInterface
     public function setTotalTaxAmount(AmountInterface $amount)
     {
         return $this->setData('total_tax_amount', $amount);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function setTotalCreditAmount(AmountInterface $amount)
+    {
+        return $this->setData('total_credit_amount', $amount);
     }
 
     /**
