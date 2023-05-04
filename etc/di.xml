@@ -117,6 +117,17 @@
         </arguments>
     </type>
 
+    <!-- extended loggers -->
+    <type name="Amazon\Pay\Logger\ExtendedLogger">
+        <arguments>
+            <argument name="name" xsi:type="string">extendedLogger</argument>
+            <argument name="handlers" xsi:type="array">
+                <item name="debug" xsi:type="object">Amazon\Pay\Logger\Handler\Extended</item>
+            </argument>
+        </arguments>
+    </type>
+    <!-- extended loggers end -->
+
     <!-- Payment Method Facade configuration -->
     <virtualType name="AmazonPayFacade" type="Magento\Payment\Model\Method\Adapter">
         <arguments>

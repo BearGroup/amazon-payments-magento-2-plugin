@@ -19,6 +19,7 @@ namespace Amazon\Pay\Model;
 use Amazon\Pay\Api\Data\CheckoutSessionInterface;
 use Amazon\Pay\Gateway\Config\Config;
 use Amazon\Pay\Helper\Session;
+use Amazon\Pay\Logger\ExtendedLogger;
 use Amazon\Pay\Model\Config\Source\AuthorizationMode;
 use Amazon\Pay\Model\Config\Source\PaymentAction;
 use Amazon\Pay\Model\AsyncManagement;
@@ -215,6 +216,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     private $updateCouponUsages;
 
     /**
+     * @var ExtendedLogger
+     */
+    private $extendedLogger;
+
+    /**
      * CheckoutSessionManagement constructor.
      * @param \Magento\Store\Model\StoreManagerInterface $storeManager
      * @param \Magento\Quote\Model\QuoteIdMaskFactory $quoteIdMaskFactory
@@ -247,6 +253,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * @param Session $session
      * @param Translate $translationRenderer
      * @param UpdateCouponUsages $updateCouponUsages
+     * @param ExtendedLogger $extendedLogger
      */
     public function __construct(
         \Magento\Store\Model\StoreManagerInterface $storeManager,
@@ -280,6 +287,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         Session $session,
         Translate $translationRenderer,
         UpdateCouponUsages $updateCouponUsages,
+        ExtendedLogger $extendedLogger,
     ) {
         $this->storeManager = $storeManager;
         $this->quoteIdMaskFactory = $quoteIdMaskFactory;
@@ -312,6 +320,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         $this->session = $session;
         $this->translationRenderer = $translationRenderer;
         $this->updateCouponUsages = $updateCouponUsages;
+        $this->extendedLogger = $extendedLogger;
     }
 
     /**
@@ -662,12 +671,37 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      */
     public function completeCheckoutSession($amazonSessionId, $cartId = null)
     {
+        $this->extendedLogger->debug(
+            '***** completeCheckoutProcess started *****',
+            __FUNCTION__,
+            $amazonSessionId
+        );
+
+        $this->extendedLogger->debug(
+            'AmazonSessionID: ' . $amazonSessionId . ' - CartID: '. $cartId,
+            __FUNCTION__,
+            $amazonSessionId
+        );
+
         if (!$quote = $this->session->getQuoteFromIdOrSession($cartId)) {
+
+            $this->extendedLogger->debug(
+                "Unable to complete Amazon Pay checkout. Can't obtain quote.",
+                __FUNCTION__,
+                $amazonSessionId
+            );
+
             return ['success' => false];
         }
 
         if (empty($amazonSessionId) || !$this->canCheckoutWithAmazon($quote) || !$this->canSubmitQuote($quote)) {
-            $this->logger->debug("Unable to complete Amazon Pay checkout. Can't submit quote id: " . $quote->getId());
+            $this->extendedLogger->debug(
+                "Unable to complete Amazon Pay checkout. Can't submit quote id: " . $quote->getId(),
+                __FUNCTION__,
+                $amazonSessionId
+            );
+
+            $this->extendedLogger->debug('***** process finished *****',__FUNCTION__, $amazonSessionId);
             return [
                 'success' => false,
                 'message' => $this->getTranslationString('Unable to complete Amazon Pay checkout'),
@@ -675,6 +709,13 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         }
         try {
             if (!$quote->getCustomer()->getId()) {
+                //extended logger
+                $this->extendedLogger->debug(
+                    'Unable to obtain customer ID. Setting checkout as GUEST.',
+                    __FUNCTION__,
+                    $amazonSessionId
+                );
+
                 $quote->setCheckoutMethod(\Magento\Quote\Api\CartManagementInterface::METHOD_GUEST);
             }
 
@@ -683,7 +724,28 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 $quote->getStoreId(),
                 $amazonSessionId
             );
+
+            //extended logger
+            $this->extendedLogger->debug(
+                'Amazon Product State: ' . $amazonSession['statusDetails']['state'] .
+                ' | Product Type: ' . $amazonSession['productType'],
+                __FUNCTION__,
+                $amazonSessionId
+            );
+
             if ($amazonSession['statusDetails']['state'] == 'Canceled') {
+
+                $this->extendedLogger->debug(
+                    "Amazon Status is 'Canceled'. Message: ".$this->getCanceledMessage($amazonSession),
+                    __FUNCTION__,
+                    $amazonSessionId
+                );
+                $this->extendedLogger->debug(
+                    '***** process finished *****',
+                    __FUNCTION__,
+                    $amazonSessionId
+                );
+
                 return [
                     'success' => false,
                     'message' => $this->getCanceledMessage($amazonSession),
@@ -692,6 +754,12 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
             if ($amazonSession['productType'] == 'PayOnly') {
                 if (empty($quote->getCustomerEmail())) {
+                    //extended logger
+                    $this->extendedLogger->debug(
+                        'Customer Email not found. Setting customer Email: ' . $amazonSession['buyer']['email'],
+                        __FUNCTION__,
+                        $amazonSessionId
+                    );
                     $quote->setCustomerEmail($amazonSession['buyer']['email']);
                 }
             }
@@ -699,21 +767,31 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             // get payment to load it in the session, so that a salesrule that relies on payment method conditions
             // can work as expected
             $payment = $quote->getPayment();
-
             // Some checkout flows (especially 3rd party) could get to this point without setting payment method
             if (empty($payment->getMethod())) {
+                $this->extendedLogger->debug(
+                    'Payment method not found. Setting method to: ' . Config::CODE,
+                    __FUNCTION__,
+                    $amazonSessionId
+                );
                 $payment->setMethod(Config::CODE);
             }
 
             // set amazon session id on payment object to be used in authorize
             $payment->setAdditionalInformation('amazon_session_id', $amazonSessionId);
-
             // collect quote totals before placing order (needed for 2.3.0 and lower)
             // https://github.com/amzn/amazon-payments-magento-2-plugin/issues/992
             $quote->collectTotals();
 
             $orderId = $this->cartManagement->placeOrder($quote->getId());
             $order = $this->orderRepository->get($orderId);
+
+            $this->extendedLogger->debug(
+                'Order placed. Order ID: ' . $orderId . '. IncrementID: ' . $order->getIncrementId(),
+                __FUNCTION__,
+                $amazonSessionId
+            );
+
             $result = [
                 'success' => true,
                 'order_id' => $orderId,
@@ -727,21 +805,46 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 $quote->getQuoteCurrencyCode()
             );
             $completeCheckoutStatus = $amazonCompleteCheckoutResult['status'] ?? '404';
+
+            //extended logger
+            $this->extendedLogger->debug(
+                'Amazon CompleteCheckout Status: ' . $completeCheckoutStatus,
+                __FUNCTION__,
+                $amazonSessionId
+            );
+
             if (!preg_match('/^2\d\d$/', $completeCheckoutStatus)) {
                 // Something went wrong, but the order has already been placed, so cancelling it
+                //extended logger
+                $this->extendedLogger->debug(
+                    'CompleteCheckoutStatus error. Cancelling Order!',
+                    __FUNCTION__,
+                    $amazonSessionId
+                );
+
                 $this->cancelOrder($order);
 
                 $session = $this->amazonAdapter->getCheckoutSession(
                     $quote->getStoreId(),
                     $amazonSessionId
                 );
+
                 if (isset($session['chargePermissionId'])) {
+
+                    //extended logger
+                    $this->extendedLogger->debug(
+                        'PermissionId found. Closing chargePermission due to checkout session failed to complete',
+                        __FUNCTION__,
+                        $amazonSessionId
+                    );
+
                     $this->amazonAdapter->closeChargePermission(
                         $quote->getStoreId(),
                         $session['chargePermissionId'],
                         'Canceled due to checkout session failed to complete',
                         true
                     );
+
                 }
 
                 return [
@@ -758,6 +861,13 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
             if ($completeCheckoutStatus != '202' &&
                 $this->amazonConfig->getPaymentAction() == PaymentAction::AUTHORIZE_AND_CAPTURE) {
+
+                $this->extendedLogger->debug(
+                    "Capturing Payment on AmazonPay. ChargeID: " . $chargeId ,
+                    __FUNCTION__,
+                    $amazonSessionId
+                );
+
                 // capture on Amazon Pay
                 $this->amazonAdapter->captureCharge(
                     $quote->getStoreId(),
@@ -765,10 +875,29 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                     $quote->getGrandTotal(),
                     $quote->getQuoteCurrencyCode()
                 );
+
                 // capture and invoice on the Magento side
+                $this->extendedLogger->debug(
+                    "Capturing Payment on Magento.",
+                    __FUNCTION__,
+                    $amazonSessionId
+                );
                 $this->asyncCharge->capture($order, $chargeId, $quote->getGrandTotal());
             }
+
+            $this->extendedLogger->debug(
+                "Getting charge from Amazon.",
+                __FUNCTION__,
+                $amazonSessionId
+            );
+
             $amazonCharge = $this->amazonAdapter->getCharge($quote->getStoreId(), $chargeId);
+
+            $this->extendedLogger->debug(
+                "Updating chargePermission on Amazon.",
+                __FUNCTION__,
+                $amazonSessionId
+            );
 
             //Send merchantReferenceId to Amazon
             $this->amazonAdapter->updateChargePermission(
@@ -778,6 +907,14 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             );
 
             $chargeState = $amazonCharge['statusDetails']['state'];
+
+            //extended logger
+            $this->extendedLogger->debug('Charge State: ' . $chargeState, __FUNCTION__, $amazonSessionId);
+            $this->extendedLogger->debug(
+                'Amazon Config Authorization Mode: ' . $this->amazonConfig->getAuthorizationMode(),
+                __FUNCTION__,
+                $amazonSessionId
+            );
 
             switch ($chargeState) {
                 case 'AuthorizationInitiated':
@@ -811,27 +948,57 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $this->updateTransactionId($chargeId, $payment, $transaction);
 
         } catch (\Exception $e) {
+
+            //extended logger
+            $this->extendedLogger->info("Exception caught: " . $e->getMessage(),__FUNCTION__, $amazonSessionId);
+
             $session = $this->amazonAdapter->getCheckoutSession(
                 $quote->getStoreId(),
                 $amazonSessionId
             );
 
             if (isset($session['chargePermissionId'])) {
+
                 $this->amazonAdapter->closeChargePermission(
                     $quote->getStoreId(),
                     $session['chargePermissionId'],
                     'Canceled due to technical issue: ' . $e->getMessage(),
                     true
                 );
+
+                //extended logger
+                $this->extendedLogger->debug(
+                    'Closing chargePermission due due to technical issue: ' . $e->getMessage() .
+                    ' - ChargePermissionID: ' . $session['chargePermissionId'] ,
+                    __FUNCTION__,
+                    $amazonSessionId
+                );
             }
 
             // cancel order
             if (isset($order)) {
+                //extended logger
+                $this->extendedLogger->debug('Order found. Cancelling. IncrementID: '.$order->getIncrementId(),
+                    __FUNCTION__,
+                    $amazonSessionId
+                );
                 $this->cancelOrder($order);
             }
-
             throw $e;
         }
+
+        //extended logger
+        $this->extendedLogger->info(
+            'Complete Checkout Session result: ' . json_encode($result),
+            __FUNCTION__,
+            $amazonSessionId
+        );
+        $this->extendedLogger->debug(
+            '***** completeCheckoutProcess finished *****',
+            __FUNCTION__,
+            $amazonSessionId
+        );
+
         return $result;
     }
 

@@ -762,7 +762,7 @@ class AmazonConfig
             $scope,
             $scopeCode
         );
-       
+
         if ($configValues) {
             $configValues = $this->serializer->unserialize($configValues);
             if (count($configValues) > 0) {
