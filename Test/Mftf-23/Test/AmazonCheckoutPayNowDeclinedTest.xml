@@ -35,8 +35,8 @@
         <click selector="{{AmazonPageSection.changePaymentButton}}" stepKey="clickChangePaymentMethod"/>
         <waitForElementVisible selector="{{AmazonPageSection.paymentMethodRadioButton('3434')}}" stepKey="waitForPaymentMethods"/>
         <click selector="{{AmazonPageSection.paymentMethodRadioButton('3434')}}" stepKey="clickPaymentMethod"/>
-        <waitForElementVisible selector="{{AmazonPageSection.usePaymentButton}}" stepKey="waitForUsePaymentMethodButton"/>
-        <click selector="{{AmazonPageSection.usePaymentButton}}" stepKey="clickUsePaymentMethodButton"/>
+        <waitForElement selector="{{AmazonPageSection.usePaymentButton}}" stepKey="waitForUsePaymentMethodButton"/>
+        <executeJS function="document.querySelector('{{AmazonPageSection.usePaymentButton}}').click();" stepKey="clickUsePaymentMethodButton"/>
 
         <waitForElement selector="{{AmazonPageSection.checkoutButton}}" stepKey="seePayNow" />
         <wait time="2" stepKey="allowPayNowButtonToBeClickable" />

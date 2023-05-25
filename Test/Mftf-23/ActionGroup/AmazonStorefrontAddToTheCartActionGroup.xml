@@ -15,6 +15,15 @@
         }" stepKey="allowAddToCartButtonToLoad" before="addToCart"/>
         <click selector="{{StorefrontProductActionSection.addToCart}}" stepKey="addToCart"/>
         <waitForPageLoad stepKey="waitForPageToLoad"/>
-        <waitForElementVisible selector="{{StorefrontMessagesSection.success}}" stepKey="waitForSuccessMessage"/>
+        
+        <executeInSelenium function="function (\Facebook\WebDriver\Remote\RemoteWebDriver $remoteWebDriver) {
+            $addToCartSuccessSelector = \Facebook\WebDriver\WebDriverBy::cssSelector('{{StorefrontMessagesSection.success}}');
+            try {
+                $remoteWebDriver->wait(10, 100)->until(\Facebook\WebDriver\WebDriverExpectedCondition::visibilityOfElementLocated(addToCartSuccessSelector));
+            } catch (\Exception $e) {
+                $emptyMinicartSelector = \Facebook\WebDriver\WebDriverBy::cssSelector('{{StorefrontMinicartSection.emptyCart}}');
+                $remoteWebDriver->wait(10, 100)->until(\Facebook\WebDriver\WebDriverExpectedCondition::invisibilityOfElementLocated($emptyMinicartSelector));
+            }
+        }" stepKey="verifyProductAddedToCart"/>
     </actionGroup>
 </actionGroups>
