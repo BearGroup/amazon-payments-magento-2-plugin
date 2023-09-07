@@ -20,7 +20,7 @@ $currency = $block->getCurrency();
 
 <br/>
 
-<?php if ($block->canUpgrade()): ?>
+<?php if ($block->canUpgrade() && !$block->hasCV2PublicKeyId()): ?>
     <div data-mage-init='{"Amazon_Pay/js/keyupgrade": <?= $block->escapeHtml($block->getKeyUpgradeConfig()) ?>}'
             id="amazon_keyupgrade">
         <div id="keyupgrade-hint">
