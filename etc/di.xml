@@ -26,6 +26,9 @@
     <preference for="Amazon\Pay\Domain\AmazonNameInterface" type="Amazon\Pay\Domain\AmazonName" />
     <preference for="Amazon\Pay\Domain\AmazonAddressInterface" type="Amazon\Pay\Domain\AmazonAddress" />
 
+    <!--  Used to extend protected transaction id message method  -->
+    <preference for="Magento\Sales\Model\Order\Payment" type="Amazon\Pay\Model\Order\Payment" />
+
     <type name="Amazon\Pay\Domain\AmazonAddressFactory">
         <arguments>
             <argument name="addressDecoratorPool" xsi:type="array">
