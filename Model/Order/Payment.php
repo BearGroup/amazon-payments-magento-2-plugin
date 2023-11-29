@@ -5,7 +5,6 @@ namespace Amazon\Pay\Model\Order;
 use Amazon\Pay\Model\AmazonConfig;
 use Magento\Framework\Api\AttributeValueFactory;
 use Magento\Framework\Api\ExtensionAttributesFactory;
-use Magento\Framework\Config\Scope;
 use Magento\Framework\Data\Collection\AbstractDb;
 use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Framework\Model\Context;
@@ -21,24 +20,23 @@ use Magento\Sales\Model\Order\Payment\Operations\SaleOperation;
 use Magento\Sales\Model\Order\Payment\Processor;
 use Magento\Sales\Model\Order\Payment\Transaction;
 use Magento\Sales\Model\Order\Payment\Transaction\ManagerInterface;
-use Magento\Store\Model\ScopeInterface;
 
 class Payment extends \Magento\Sales\Model\Order\Payment
 {
 
-    const AMAZON_PAY_METHODS =  [
+    private const AMAZON_PAY_METHODS =  [
         'amazon_payment_v2',
         'amazon_payment_v2_vault'
     ];
 
-    const SELLER_CENTRAL_URL = [
+    private const SELLER_CENTRAL_URL = [
         'de' => 'https://sellercentral-europe.amazon.com/external-payments/pmd/payment-details',
-        'uk' => 'https://sellercentral-europe.amazon.com/external-payments/pmd/payment-details',
-        'jp' => 'https://sellercentral.amazon.com/external-payments/pmd/payment-details',
+        'uk' => 'https://sellercentral.amazon.co.uk/external-payments/pmd/payment-details',
+        'jp' => 'https://sellercentral.amazon.co.jp/external-payments/pmd/payment-details',
         'us' => 'https://sellercentral.amazon.com/external-payments/pmd/payment-details',
         'default' => 'https://sellercentral.amazon.com/external-payments/pmd/payment-details'
     ];
-    
+
     /**
      * @var AmazonConfig
      */
@@ -84,10 +82,28 @@ class Payment extends \Magento\Sales\Model\Order\Payment
         AbstractDb $resourceCollection = null,
         array $data = [],
         CreditmemoManager $creditmemoManager = null,
-        SaleOperation $saleOperation = null,
-
+        SaleOperation $saleOperation = null
     ) {
-        parent::__construct($context, $registry, $extensionFactory, $customAttributeFactory, $paymentData, $encryptor, $creditmemoFactory, $priceCurrency, $transactionRepository, $transactionManager, $transactionBuilder, $paymentProcessor, $orderRepository, $resource, $resourceCollection, $data, $creditmemoManager, $saleOperation);
+        parent::__construct(
+            $context,
+            $registry,
+            $extensionFactory,
+            $customAttributeFactory,
+            $paymentData,
+            $encryptor,
+            $creditmemoFactory,
+            $priceCurrency,
+            $transactionRepository,
+            $transactionManager,
+            $transactionBuilder,
+            $paymentProcessor,
+            $orderRepository,
+            $resource,
+            $resourceCollection,
+            $data,
+            $creditmemoManager,
+            $saleOperation
+        );
         $this->amazonConfig = $amazonConfig;
     }
 
@@ -105,7 +121,8 @@ class Payment extends \Magento\Sales\Model\Order\Payment
             $method = $transaction->getPayment()->getMethod();
             $txnId = is_object($transaction) ? $transaction->getHtmlTxnId() : $transaction;
 
-            // If an amazon pay payment method was used we're going to turn the charge permission id into a link to sellercentral
+            // If an amazon pay payment method was used,
+            // we're going to turn the charge permission id into a link to sellercentral
             if (in_array($method, self::AMAZON_PAY_METHODS, true)) {
 
                 $paymentAdditionalInformation = $transaction->getPayment()->getAdditionalInformation();
@@ -122,21 +139,27 @@ class Payment extends \Magento\Sales\Model\Order\Payment
     }
 
     /**
-     * @param $message
-     * @param $chargePermissionId
-     * @param $txnId
+     * Generates SellerCentral link using chargePermissionId
+     *
+     * @param string $message
+     * @param string $chargePermissionId
      * @return string
      */
-    private function setSellerCentralPaymentDetailsLink($message, $chargePermissionId, $txnId): string
+    private function setSellerCentralPaymentDetailsLink(string $message, string $chargePermissionId): string
     {
         $sellerCentralBaseUrl = $this->getSellerCentralBaseUrl();
-        // $txnId is a bit varying depending on the situation. Can be a session id, or the orderReferenceId with an appended status flag
-        $link = '<a href="' . $sellerCentralBaseUrl . '?orderReferenceId=' . $chargePermissionId . '">' . $txnId . '</a>';
+        // $txnId is a bit varying depending on the situation.
+        // Can be a session id, or the orderReferenceId with an appended status flag
+        $link = '<a href="' . $sellerCentralBaseUrl . '?orderReferenceId=' . $chargePermissionId . '">
+                    ' . $chargePermissionId . '
+                </a>';
         $message .= ' ' . __('Transaction ID: "%1"', $link);
         return $message;
     }
 
     /**
+     * Grabs predefined url option based on payment region
+     *
      * @return string
      */
     private function getSellerCentralBaseUrl(): string
@@ -148,6 +171,4 @@ class Payment extends \Magento\Sales\Model\Order\Payment
 
         return self::SELLER_CENTRAL_URL['default'];
     }
-
-
 }
