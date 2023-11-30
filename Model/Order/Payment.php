@@ -20,6 +20,7 @@ use Magento\Sales\Model\Order\Payment\Operations\SaleOperation;
 use Magento\Sales\Model\Order\Payment\Processor;
 use Magento\Sales\Model\Order\Payment\Transaction;
 use Magento\Sales\Model\Order\Payment\Transaction\ManagerInterface;
+use Magento\Store\Model\ScopeInterface;
 
 class Payment extends \Magento\Sales\Model\Order\Payment
 {
@@ -127,8 +128,9 @@ class Payment extends \Magento\Sales\Model\Order\Payment
 
                 $paymentAdditionalInformation = $transaction->getPayment()->getAdditionalInformation();
                 $chargePermissionId = $paymentAdditionalInformation['charge_permission_id'] ?? false;
+                $store = $transaction->getOrder()->getStoreId() ?? null;
                 if ($chargePermissionId) {
-                    return $this->setSellerCentralPaymentDetailsLink($message, $chargePermissionId, $txnId);
+                    return $this->setSellerCentralPaymentDetailsLink($message, $chargePermissionId, $store);
                 }
             }
 
@@ -143,11 +145,12 @@ class Payment extends \Magento\Sales\Model\Order\Payment
      *
      * @param string $message
      * @param string $chargePermissionId
+     * @param int $store
      * @return string
      */
-    private function setSellerCentralPaymentDetailsLink(string $message, string $chargePermissionId): string
+    private function setSellerCentralPaymentDetailsLink(string $message, string $chargePermissionId, int $store): string
     {
-        $sellerCentralBaseUrl = $this->getSellerCentralBaseUrl();
+        $sellerCentralBaseUrl = $this->getSellerCentralBaseUrl($store);
         // $txnId is a bit varying depending on the situation.
         // Can be a session id, or the orderReferenceId with an appended status flag
         $link = '<a href="' . $sellerCentralBaseUrl . '?orderReferenceId=' . $chargePermissionId . '">
@@ -160,12 +163,13 @@ class Payment extends \Magento\Sales\Model\Order\Payment
     /**
      * Grabs predefined url option based on payment region
      *
+     * @param int $store
      * @return string
      */
-    private function getSellerCentralBaseUrl(): string
+    private function getSellerCentralBaseUrl(int $store): string
     {
-        $paymentRegion = $this->amazonConfig->getPaymentRegion();
-        if (in_array($paymentRegion, self::SELLER_CENTRAL_URL, true)) {
+        $paymentRegion = $this->amazonConfig->getPaymentRegion(ScopeInterface::SCOPE_STORE, $store);
+        if (array_key_exists($paymentRegion, self::SELLER_CENTRAL_URL)) {
             return self::SELLER_CENTRAL_URL[$paymentRegion];
         }
 
