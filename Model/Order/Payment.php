@@ -127,8 +127,11 @@ class Payment extends \Magento\Sales\Model\Order\Payment
             if (in_array($method, self::AMAZON_PAY_METHODS, true)) {
 
                 $paymentAdditionalInformation = $transaction->getPayment()->getAdditionalInformation();
+                // chargedPermissionId is set in additional_info once Amazonpay processes take place
+                // It's the "Amazon Reference Id" in seller central
                 $chargePermissionId = $paymentAdditionalInformation['charge_permission_id'] ?? false;
                 $store = $transaction->getOrder()->getStoreId() ?? null;
+                // not present on initial order placement therefore not able to generate a link
                 if ($chargePermissionId) {
                     return $this->setSellerCentralPaymentDetailsLink($message, $chargePermissionId, $store);
                 }
@@ -151,8 +154,6 @@ class Payment extends \Magento\Sales\Model\Order\Payment
     private function setSellerCentralPaymentDetailsLink(string $message, string $chargePermissionId, int $store): string
     {
         $sellerCentralBaseUrl = $this->getSellerCentralBaseUrl($store);
-        // $txnId is a bit varying depending on the situation.
-        // Can be a session id, or the orderReferenceId with an appended status flag
         $link = '<a href="' . $sellerCentralBaseUrl . '?orderReferenceId=' . $chargePermissionId . '">
                     ' . $chargePermissionId . '
                 </a>';
