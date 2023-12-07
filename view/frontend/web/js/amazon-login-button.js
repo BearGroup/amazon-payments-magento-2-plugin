@@ -29,24 +29,37 @@ define([
                 placement: 'Cart',
             },
 
-            _loadButtonConfig: function (config, callback) {
+            /**
+             * Load and assemble button config
+             */
+            _loadButtonConfig: function (config) {
+                let deferredButtonConfigLoad = $.Deferred();
                 checkoutSessionConfigLoad(false).then( function (checkoutSessionConfig) {
-                    callback({
-                        merchantId: checkoutSessionConfig['merchant_id'],
-                        ledgerCurrency: checkoutSessionConfig['currency'],
-                        buttonColor: checkoutSessionConfig['button_color'],
-                        checkoutLanguage: checkoutSessionConfig['language'],
-                        productType: 'SignIn',
-                        placement: this.options.placement,
-                        sandbox: checkoutSessionConfig['sandbox'],
-                        // configure sign in
-                        signInConfig: {
-                            payloadJSON: checkoutSessionConfig['login_payload'],
-                            signature: checkoutSessionConfig['login_signature'],
-                            publicKeyId: checkoutSessionConfig['public_key_id']
-                        }
-                    });
+                    let buttonConfig = this._buildButtonConfigArray(checkoutSessionConfig);
+                    deferredButtonConfigLoad.resolve(buttonConfig);
                 }.bind(this));
+                return deferredButtonConfigLoad;
+            },
+
+            /**
+             * build button config object
+             */
+            _buildButtonConfigArray(checkoutSessionConfig) {
+                return {
+                    merchantId: checkoutSessionConfig['merchant_id'],
+                    ledgerCurrency: checkoutSessionConfig['currency'],
+                    buttonColor: checkoutSessionConfig['button_color'],
+                    checkoutLanguage: checkoutSessionConfig['language'],
+                    productType: 'SignIn',
+                    placement: this.options.placement,
+                    sandbox: checkoutSessionConfig['sandbox'],
+                    // configure sign in
+                    signInConfig: {
+                        payloadJSON: checkoutSessionConfig['login_payload'],
+                        signature: checkoutSessionConfig['login_signature'],
+                        publicKeyId: checkoutSessionConfig['public_key_id']
+                    }
+                }
             },
 
             /**
@@ -66,14 +79,15 @@ define([
              * Create button
              */
             _create: function (config) {
-                var $buttonContainer = this.element;
+                let $buttonContainer = this.element;
                 amazonCheckout.withAmazonCheckout(function (amazon, args) {
-                    var $buttonRoot = $('<div></div>');
+                    let $buttonRoot = $('<div></div>');
                     $buttonRoot.html('<img src="' + require.toUrl('images/loader-1.gif') + '" alt="" width="24" />');
                     $buttonContainer.empty().append($buttonRoot);
-                    this._loadButtonConfig(config, function (buttonConfig) {
+                    this._loadButtonConfig(config).then(function (buttonConfig) {
                          try {
-                            amazon.Pay.renderButton('#' + $buttonRoot.empty().uniqueId().attr('id'), buttonConfig);
+                             let buttonId = '#' + $buttonRoot.empty().uniqueId().attr('id');
+                            amazon.Pay.renderButton(buttonId, buttonConfig);
                         } catch (e) {
                             console.log('Amazon Login button render error: ' + e);
                             return;
