@@ -52,42 +52,15 @@ define([
         amazonPayButton: null,
         currencyCode: null,
 
-        _loadButtonConfig: function (callback, forceReload = false) {
+        /**
+         * Load and assemble button config
+         */
+        _loadButtonConfig: function (forceReload = false) {
+            let deferredButtonConfigLoad = $.Deferred();
             checkoutSessionConfigLoad(forceReload).then( function (checkoutSessionConfig) {
                 if (!$.isEmptyObject(checkoutSessionConfig)) {
-                    var payload = checkoutSessionConfig['checkout_payload'];
-                    var signature = checkoutSessionConfig['checkout_signature'];
-
-                    if (this.buttonType === 'PayNow') {
-                        payload = checkoutSessionConfig['paynow_payload'];
-                        signature = checkoutSessionConfig['paynow_signature'];
-                    }
-
-                    self.currencyCode = checkoutSessionConfig['currency'];
-
-                    var buttonConfig = {
-                        merchantId: checkoutSessionConfig['merchant_id'],
-                        publicKeyId: checkoutSessionConfig['public_key_id'],
-                        ledgerCurrency: self.currencyCode,
-                        sandbox: checkoutSessionConfig['sandbox'],
-                        checkoutLanguage: checkoutSessionConfig['language'],
-                        productType: this._isPayOnly(checkoutSessionConfig['pay_only']) ? 'PayOnly' : 'PayAndShip',
-                        placement: this.options.placement,
-                        buttonColor: checkoutSessionConfig['button_color'],
-                        createCheckoutSessionConfig: {
-                            payloadJSON: payload,
-                            signature: signature,
-                            publicKeyId: checkoutSessionConfig['public_key_id'],
-                        }
-                    };
-
-                    if (this._shouldUseEstimatedAmount()
-                        && !(JSON.parse(checkoutSessionConfig.checkout_payload).recurringMetadata)
-                    ) {
-                        buttonConfig.estimatedOrderAmount = this._getEstimatedAmount();
-                    }
-
-                    callback(buttonConfig);
+                    let buttonConfig = this._buildButtonConfigArray(checkoutSessionConfig);
+                    deferredButtonConfigLoad.resolve(buttonConfig);
 
                     if (this.options.placement !== "Checkout") {
                         $(this.options.hideIfUnavailable).show();
@@ -96,6 +69,46 @@ define([
                     $(this.options.hideIfUnavailable).hide();
                 }
             }.bind(this));
+            return deferredButtonConfigLoad;
+        },
+
+        /**
+         * build button config object
+         */
+        _buildButtonConfigArray(checkoutSessionConfig) {
+            var payload = checkoutSessionConfig['checkout_payload'];
+            var signature = checkoutSessionConfig['checkout_signature'];
+
+            if (this.buttonType === 'PayNow') {
+                payload = checkoutSessionConfig['paynow_payload'];
+                signature = checkoutSessionConfig['paynow_signature'];
+            }
+
+            self.currencyCode = checkoutSessionConfig['currency'];
+
+            var buttonConfig = {
+                merchantId: checkoutSessionConfig['merchant_id'],
+                publicKeyId: checkoutSessionConfig['public_key_id'],
+                ledgerCurrency: self.currencyCode,
+                sandbox: checkoutSessionConfig['sandbox'],
+                checkoutLanguage: checkoutSessionConfig['language'],
+                productType: this._isPayOnly(checkoutSessionConfig['pay_only']) ? 'PayOnly' : 'PayAndShip',
+                placement: this.options.placement,
+                buttonColor: checkoutSessionConfig['button_color'],
+                createCheckoutSessionConfig: {
+                    payloadJSON: payload,
+                    signature: signature,
+                    publicKeyId: checkoutSessionConfig['public_key_id'],
+                }
+            };
+
+            if (this._shouldUseEstimatedAmount()
+                && !(JSON.parse(checkoutSessionConfig.checkout_payload).recurringMetadata)
+            ) {
+                buttonConfig.estimatedOrderAmount = this._getEstimatedAmount();
+            }
+
+            return buttonConfig;
         },
 
         _getEstimatedAmount: function () {
@@ -141,7 +154,7 @@ define([
 
         /**
          * Draw button
-         **/
+         */
         _draw: function () {
             var self = this;
 
@@ -153,7 +166,7 @@ define([
                     $buttonRoot.html('<img src="' + require.toUrl('images/loader-1.gif') + '" alt="" width="24" />');
                     $buttonContainer.empty().append($buttonRoot);
 
-                    this._loadButtonConfig(function (buttonConfig) {
+                    this._loadButtonConfig().then(function (buttonConfig) {
                         // do not use session config for decoupled button
                         if (self.buttonType === 'PayNow') {
                             delete buttonConfig.createCheckoutSessionConfig;
@@ -225,10 +238,10 @@ define([
                 }
             }
 
-            this._loadButtonConfig(function (buttonConfig) {
+            this._loadButtonConfig(true).then(function (buttonConfig) {
                 var initConfig = {createCheckoutSessionConfig: buttonConfig.createCheckoutSessionConfig};
                 self.amazonPayButton.initCheckout(initConfig);
-            }, true);
+            });
             customerData.invalidate('*');
         },
 
