@@ -53,7 +53,7 @@ define([
         currencyCode: null,
 
         _loadButtonConfig: function (callback, forceReload = false) {
-            checkoutSessionConfigLoad(function (checkoutSessionConfig) {
+            checkoutSessionConfigLoad(forceReload).then( function (checkoutSessionConfig) {
                 if (!$.isEmptyObject(checkoutSessionConfig)) {
                     var payload = checkoutSessionConfig['checkout_payload'];
                     var signature = checkoutSessionConfig['checkout_signature'];
@@ -95,7 +95,7 @@ define([
                 } else {
                     $(this.options.hideIfUnavailable).hide();
                 }
-            }.bind(this), forceReload);
+            }.bind(this));
         },
 
         _getEstimatedAmount: function () {
@@ -202,7 +202,7 @@ define([
 
                         if (self.buttonType === 'PayNow' && self._isPayOnly()) {
                             customerData.get('checkout-data').subscribe(function (checkoutData) {
-                                const opacity = checkoutData.selectedBillingAddress ? 1 : 0.5;    
+                                const opacity = checkoutData.selectedBillingAddress ? 1 : 0.5;
 
                                 const shadow = $('.amazon-checkout-button > div')[0].shadowRoot;
                                 $(shadow).find('.amazonpay-button-view1').css('opacity', opacity);

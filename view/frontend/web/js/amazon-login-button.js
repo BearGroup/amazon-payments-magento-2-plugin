@@ -30,7 +30,7 @@ define([
             },
 
             _loadButtonConfig: function (config, callback) {
-                checkoutSessionConfigLoad(function (checkoutSessionConfig) {
+                checkoutSessionConfigLoad(false).then( function (checkoutSessionConfig) {
                     callback({
                         merchantId: checkoutSessionConfig['merchant_id'],
                         ledgerCurrency: checkoutSessionConfig['currency'],
@@ -46,7 +46,7 @@ define([
                             publicKeyId: checkoutSessionConfig['public_key_id']
                         }
                     });
-                }.bind(this), false);
+                }.bind(this));
             },
 
             /**

@@ -22,33 +22,69 @@
 ], function ($, _, remoteStorage, url, customerData) {
     'use strict';
 
-    var callbacks = []; 
-    var localStorage = null;
-    var getLocalStorage = function () {
+    let localStorage = null;
+    let deferredConfigLoad = null;
+
+     /**
+      * getLocalStorage
+      * @returns {Storage}
+      */
+    let getLocalStorage = function () {
         if (localStorage === null) {
             localStorage = $.initNamespaceStorage('amzn-checkout-session-config').localStorage;
         }
         return localStorage;
-    };  
-    return function (callback, forceReload = false) {
-        var cartId = customerData.get('cart')()['data_id'] || window.checkout.storeId;
-        var config = getLocalStorage().get('config') || false;
+    };
+
+     /**
+      * Request config
+      * @returns {*}
+      */
+    let loadConfig = function () {
+        let path = 'amazon_pay/checkout/config';
+        let configUrl = url.build(path);
+        return remoteStorage.get(configUrl); // promise
+    }
+
+     /**
+      * config was available in cache and can immediately be passed to callers (Async)
+      * @param config
+      */
+    let queueImmediateResolve = function (config) {
+        setTimeout(function () {
+            deferredConfigLoad.resolve(config);
+            deferredConfigLoad = null;
+        }, 0);
+    }
+
+     /**
+      * Return deferred config load
+      */
+    return function (forceReload = false) {
+        // if another element already initiated a config load, return to wait for response.
+        if(deferredConfigLoad !== null) {
+            return deferredConfigLoad;
+        }
+
+        // initialize new load
+        deferredConfigLoad = $.Deferred();
+        let cartId = customerData.get('cart')()['data_id'] || window.checkout.storeId;
+        let config = getLocalStorage().get('config') || false;
+
+        // if cached config is invalid
         if (forceReload
             || cartId !== getLocalStorage().get('cart_id')
             || typeof config.checkout_payload === 'undefined'
             || !config.checkout_payload.includes(document.URL.slice(0, -1))) {
-            callbacks.push(callback);
-            if (callbacks.length == 1) {
-                remoteStorage.get(url.build('amazon_pay/checkout/config')).done(function (config) {
-                    getLocalStorage().set('cart_id', cartId);
-                    getLocalStorage().set('config', config);
-                    do {
-                        callbacks.shift()(config);
-                    } while (callbacks.length);
-                });
-            }
+            loadConfig().done(function (config) {
+                getLocalStorage().set('cart_id', cartId);
+                getLocalStorage().set('config', config);
+                deferredConfigLoad.resolve(config);
+                deferredConfigLoad = null;
+            });
         } else {
-            callback(getLocalStorage().get('config'));
+            queueImmediateResolve(config);
         }
-    };  
+        return deferredConfigLoad;
+    };
 });
