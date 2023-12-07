@@ -14,34 +14,39 @@
  */
 
 define([
+    'jquery',
     'Magento_Checkout/js/model/quote',
     'mage/storage',
     'Magento_Checkout/js/model/url-builder',
     'Magento_Checkout/js/model/full-screen-loader',
     'Magento_Checkout/js/model/error-processor',
     'Amazon_Pay/js/model/storage'
-], function (quote, storage, urlBuilder, fullScreenLoader, errorProcessor, amazonStorage) {
+], function ($, quote, storage, urlBuilder, fullScreenLoader, errorProcessor, amazonStorage) {
     'use strict';
 
-    return function (callback) {
+    return function () {
+        let deferredUpdate = $.Deferred();
         var serviceUrl = urlBuilder.createUrl('/amazon-checkout-session/:amazonSessionId/update', {
             amazonSessionId: amazonStorage.getCheckoutSessionId()
         });
 
         fullScreenLoader.startLoader();
 
-        return storage.post(serviceUrl).done(function (response) {
+        storage.post(serviceUrl).done(function (response) {
             fullScreenLoader.stopLoader(true);
             if (response.indexOf('http') == 0) {
-                callback(response);
+                deferredUpdate.resolve(response);
             } else {
                 console.log('Invalid Amazon RedirectUrl:');
                 console.log(response);
                 errorProcessor.process(response);
+                deferredUpdate.reject(response);
             }
         }).fail(function (response) {
             errorProcessor.process(response);
             fullScreenLoader.stopLoader(true);
+            deferredUpdate.reject(response);
         });
+        return deferredUpdate;
     };
 });

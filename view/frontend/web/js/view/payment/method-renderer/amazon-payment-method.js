@@ -128,15 +128,13 @@ define(
              * Save order
              */
             placeOrder: function (data, event) {
-                var placeOrder;
-
                 if (event) {
                     event.preventDefault();
                 }
 
                 if (this.validate() && additionalValidators.validate()) {
                     //this.isPlaceOrderActionAllowed(false);
-                    placeOrder = placeOrderAction(this.getData());
+                    placeOrderAction(this.getData());
                 }
 
                 return false;

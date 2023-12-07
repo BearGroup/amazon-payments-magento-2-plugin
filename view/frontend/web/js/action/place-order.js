@@ -29,10 +29,8 @@ define(
     function (quote, urlBuilder, storage, errorProcessor, customerData, customer, fullScreenLoader, checkoutSessionUpdateAction, amazonStorage, agreementsAssigner) {
         'use strict';
 
-        return function (paymentData, redirectOnSuccess) {
+        let _updatePaymentAndBillingAddress = function (paymentData) {
             var serviceUrl, payload;
-
-            redirectOnSuccess = redirectOnSuccess !== false;
 
             /** Checkout for guest and registered customer. */
             if (!customer.isLoggedIn()) {
@@ -61,40 +59,39 @@ define(
             return storage.post(
                 serviceUrl,
                 JSON.stringify(payload)
-            ).done(
-                function (response) {
-                    // Redirect URL
-                    if (response === true) {
-                        checkoutSessionUpdateAction(function (redirectUrl) {
-                            customerData.invalidate(['cart']);
-                            customerData.set('checkout-data', {
-                                'selectedShippingAddress': null,
-                                'shippingAddressFromData': null,
-                                'newCustomerShippingAddress': null,
-                                'selectedShippingRate': null,
-                                'selectedPaymentMethod': null,
-                                'selectedBillingAddress': null,
-                                'billingAddressFromData': null,
-                                'newCustomerBillingAddress': null
-                            });
-                            amazonStorage.clearAmazonCheckout();
-                            window.location.replace(redirectUrl);
-                        });
-                    } else {
-                        fullScreenLoader.stopLoader(true);
-                        console.log('Invalid Amazon RedirectUrl:');
-                        console.log(response);
-                        errorProcessor.process(response);
-                    }
-                }
-            ).fail(
-                function (response) {
-                    errorProcessor.process(response);
-                    console.log(response);
-                    fullScreenLoader.stopLoader(true);
-                }
             );
+        };
 
+        return function (paymentData) {
+            _updatePaymentAndBillingAddress(paymentData).done(function (response) {
+                // Redirect URL
+                if (response === true) {
+                    checkoutSessionUpdateAction().done(function (redirectUrl) {
+                        customerData.invalidate(['cart']);
+                        customerData.set('checkout-data', {
+                            'selectedShippingAddress': null,
+                            'shippingAddressFromData': null,
+                            'newCustomerShippingAddress': null,
+                            'selectedShippingRate': null,
+                            'selectedPaymentMethod': null,
+                            'selectedBillingAddress': null,
+                            'billingAddressFromData': null,
+                            'newCustomerBillingAddress': null
+                        });
+                        amazonStorage.clearAmazonCheckout();
+                        window.location.replace(redirectUrl);
+                    });
+                } else {
+                    fullScreenLoader.stopLoader(true);
+                    console.log('Invalid Amazon RedirectUrl:');
+                    console.log(response);
+                    errorProcessor.process(response);
+                }
+            }).fail(function (response) {
+                errorProcessor.process(response);
+                console.log(response);
+                fullScreenLoader.stopLoader(true);
+            });
         };
     }
 );
