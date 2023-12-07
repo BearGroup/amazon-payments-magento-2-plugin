@@ -48,32 +48,33 @@ define([
 
             _handleSubscriptionSave: function (event) {
                 var self = this;
-                if (this.options.isAmazonPaySubscription && !(this._getSelectedPaymentLabel() === this.options.paymentMethodLabel)) {
-                    event.preventDefault();
-
-                    confirmation({
-                        title: $.mage.__('Switching from Stored Amazon Pay Method'),
-                        content: $.mage.__(`If this is your only subscription using "${this.options.paymentMethodLabel}", it will be deleted from your stored payment methods. Is this OK?`),
-                        actions: {
-                            confirm: function () {
-                                self.element.find('.action.save.primary').unbind('click').click();
-                            }
-                        },
-                        buttons: [{
-                            text: $.mage.__('No'),
-                            class: 'action-secondary action-dismiss',
-                            click: function (event) {
-                                this.closeModal(event);
-                            }
-                        }, {
-                            text: $.mage.__('Yes'),
-                            class: 'action-primary action-accept',
-                            click: function (event) {
-                                this.closeModal(event, true);
-                            }
-                        }]
-                    });
+                if (!this.options.isAmazonPaySubscription || (this._getSelectedPaymentLabel() === this.options.paymentMethodLabel)) {
+                    return;
                 }
+                event.preventDefault();
+
+                confirmation({
+                    title: $.mage.__('Switching from Stored Amazon Pay Method'),
+                    content: $.mage.__(`If this is your only subscription using "${this.options.paymentMethodLabel}", it will be deleted from your stored payment methods. Is this OK?`),
+                    actions: {
+                        confirm: function () {
+                            self.element.find('.action.save.primary').unbind('click').click();
+                        }
+                    },
+                    buttons: [{
+                        text: $.mage.__('No'),
+                        class: 'action-secondary action-dismiss',
+                        click: function (event) {
+                            this.closeModal(event);
+                        }
+                    }, {
+                        text: $.mage.__('Yes'),
+                        class: 'action-primary action-accept',
+                        click: function (event) {
+                            this.closeModal(event, true);
+                        }
+                    }]
+                });
             }
         });
 
