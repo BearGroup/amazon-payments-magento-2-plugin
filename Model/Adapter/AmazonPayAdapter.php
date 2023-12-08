@@ -16,7 +16,10 @@
 
 namespace Amazon\Pay\Model\Adapter;
 
+use Amazon\Pay\Helper\Spc\UniqueId;
 use Amazon\Pay\Model\Config\Source\PaymentAction;
+use Magento\Checkout\Model\Session as MagentoCheckoutSession;
+use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Quote\Api\Data\CartInterface;
 use Magento\Quote\Model\Quote;
 
@@ -25,6 +28,8 @@ class AmazonPayAdapter
     public const PAYMENT_INTENT_CONFIRM = 'Confirm';
     public const PAYMENT_INTENT_AUTHORIZE = 'Authorize';
     public const PAYMENT_INTENT_AUTHORIZE_WITH_CAPTURE = 'AuthorizeWithCapture';
+    public const SPC_SYNC_URL_FRAGMENT = 'v2/singlePageCheckoutDetails';
+    public const SPC_ENABLED_CONFIG = 'payment/amazon_payment_v2/spc_enabled';
 
     /**
      * @var \Amazon\Pay\Client\ClientFactoryInterface
@@ -72,6 +77,21 @@ class AmazonPayAdapter
     private $redirect;
 
     /**
+     * @var ScopeConfigInterface
+     */
+    protected $scopeConfig;
+
+    /**
+     * @var MagentoCheckoutSession
+     */
+    protected $magentoCheckoutSession;
+
+    /**
+     * @var UniqueId
+     */
+    protected $uniqueIdHelper;
+
+    /**
      * @var \Amazon\Pay\Model\Subscription\SubscriptionManager
      */
     private $subscriptionManager;
@@ -89,6 +109,9 @@ class AmazonPayAdapter
      * @param \Amazon\Pay\Logger\Logger $logger
      * @param \Magento\Framework\UrlInterface $url
      * @param \Magento\Framework\App\Response\RedirectInterface $redirect
+     * @param ScopeConfigInterface $scopeConfig
+     * @param MagentoCheckoutSession $magentoCheckoutSession
+     * @param UniqueId $uniqueIdHelper
      */
     public function __construct(
         \Amazon\Pay\Client\ClientFactoryInterface $clientFactory,
@@ -100,7 +123,10 @@ class AmazonPayAdapter
         \Amazon\Pay\Model\Subscription\SubscriptionManager $subscriptionManager,
         \Amazon\Pay\Logger\Logger $logger,
         \Magento\Framework\UrlInterface $url,
-        \Magento\Framework\App\Response\RedirectInterface $redirect
+        \Magento\Framework\App\Response\RedirectInterface $redirect,
+        ScopeConfigInterface $scopeConfig,
+        MagentoCheckoutSession $magentoCheckoutSession,
+        UniqueId $uniqueIdHelper
     ) {
         $this->clientFactory = $clientFactory;
         $this->amazonConfig = $amazonConfig;
@@ -112,6 +138,9 @@ class AmazonPayAdapter
         $this->logger = $logger;
         $this->url = $url;
         $this->redirect = $redirect;
+        $this->scopeConfig = $scopeConfig;
+        $this->magentoCheckoutSession = $magentoCheckoutSession;
+        $this->uniqueIdHelper = $uniqueIdHelper;
     }
 
     /**
@@ -587,6 +616,36 @@ class AmazonPayAdapter
             $payload['deliverySpecifications'] = $deliverySpecs;
         }
 
+        if ($this->scopeConfig->isSetFlag(self::SPC_ENABLED_CONFIG, 'store', $quote->getStoreId())) {
+            // Add checkoutResultReturnUrl
+            $payload['webCheckoutDetails']['checkoutResultReturnUrl'] =
+                $this->amazonConfig->getCheckoutResultReturnUrl();
+
+            // Always use Authorize for now, so that async transactions are handled properly
+            $paymentIntent = self::PAYMENT_INTENT_AUTHORIZE;
+
+            // Get unique id for the merchantStoreReferenceId
+            $uniqueId = $this->uniqueIdHelper->getUniqueId();
+
+            // chargePermissionType probably needs to be dynamic if buying a subscription (feature not released)
+            $payload['chargePermissionType'] = 'OneTime';
+            $payload['platformId'] = $this->amazonConfig->getPlatformId();
+            $payload['merchantMetadata'] = [
+                'merchantReferenceId' => $quote->getReservedOrderId(),
+                'merchantStoreReferenceId' => $quote->getStore()->getCode() .'-'. $uniqueId,
+                'merchantStoreName' => $this->amazonConfig->getStoreName(),
+                'customInformation' => $this->getMerchantCustomInformation(),
+            ];
+            $payload['paymentDetails'] = [
+                'paymentIntent' => $paymentIntent,
+                'canHandlePendingAuthorization' => $this->amazonConfig->canHandlePendingAuthorization(),
+
+            ];
+            $payload['cartDetails'] = [
+                'cartId' => $quote->getId(),
+            ];
+        }
+
         $hasSubscription = $this->subscriptionManager->hasSubscription($quote);
         if ($hasSubscription) {
             $payload = $this->buildSubscriptionPayload($payload, $quote);
@@ -781,5 +840,25 @@ class AmazonPayAdapter
     {
         $signInUrl = $this->amazonConfig->getSignInResultUrlPath();
         return $this->url->getUrl($signInUrl);
+    }
+
+    /**
+     * SPC sync tokens
+     *
+     * @param int $storeId
+     * @param string $payload
+     * @param array|null $headers
+     * @return array
+     */
+    public function spcSyncTokens(int $storeId, string $payload, $headers = null)
+    {
+        $response = $this->clientFactory->create($storeId)->apiCall(
+            'POST',
+            self::SPC_SYNC_URL_FRAGMENT,
+            $payload,
+            $headers
+        );
+
+        return $this->processResponse($response, __FUNCTION__);
     }
 }
