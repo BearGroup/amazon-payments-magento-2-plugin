@@ -55,9 +55,11 @@ class PaymentTransactionIdUpdate
     }
 
     /**
+     * Set special transaction ID if AP transaction is voided
+     * 
      * @param ManagerInterface $subject
      * @param OrderPaymentInterface $payment
-     * @param $type
+     * @param string $type
      * @param bool $transactionBasedOn
      * @return array
      * @SuppressWarnings(PHPMD.UnusedFormalParameter)

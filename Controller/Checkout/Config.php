@@ -30,6 +30,13 @@ class Config extends \Magento\Framework\App\Action\Action
      */
     private $amazonCheckoutSession;
 
+    /**
+     * Config constructor.
+     *
+     * @param \Magento\Framework\App\Action\Context $context
+     * @param \Magento\Framework\Controller\Result\JsonFactory $resultJsonFactory
+     * @param \Amazon\Pay\CustomerData\CheckoutSession $amazonCheckoutSession
+     */
     public function __construct(
         \Magento\Framework\App\Action\Context $context,
         \Magento\Framework\Controller\Result\JsonFactory $resultJsonFactory,
@@ -41,13 +48,12 @@ class Config extends \Magento\Framework\App\Action\Action
         $this->amazonCheckoutSession = $amazonCheckoutSession;
     }
 
-    /*
+    /**
      * @inheritdoc
      */
     public function execute()
     {
-        $omitPayloads = filter_var($this->getRequest()->getParams()['omit_payloads'], FILTER_VALIDATE_BOOLEAN);
-        $data = $this->amazonCheckoutSession->getConfig($omitPayloads);
+        $data = $this->amazonCheckoutSession->getConfig();
         return $this->resultJsonFactory->create()->setData($data);
     }
 }

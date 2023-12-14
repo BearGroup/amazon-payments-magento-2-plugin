@@ -13,20 +13,27 @@
  * permissions and limitations under the License.
  */
 
- define([
+define([
     'jquery',
-    'underscore',
-    'mage/storage',
-    'mage/url',
     'Magento_Customer/js/customer-data'
-], function ($, _, remoteStorage, url, customerData) {
+], function ($, customerData) {
     'use strict';
+    let deferredAddToCart = $.Deferred();
+    let addedViaAmazon = false;
 
-    return function (callback, payloadType) {
-        var serviceUrl = url.build(`rest/V1/amazon-checkout-session/button-payload/${payloadType}`);
+    //subscribe to add to cart event
+    let cart = customerData.get('cart');
+    cart.subscribe(function () {
+        if(addedViaAmazon && deferredAddToCart.state() === 'pending') {
+            deferredAddToCart.resolve();
+        }
+    });
 
-        remoteStorage.get(serviceUrl).done(function (payload) {
-                callback(payload);
-            });
+    return {
+        execute: function () {
+            $('#product_addtocart_form').submit();
+            addedViaAmazon = true;
+            return deferredAddToCart;
+        }
     };
 });

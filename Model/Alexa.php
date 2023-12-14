@@ -51,6 +51,8 @@ class Alexa
     private $alexaHelper;
 
     /**
+     * Alexa constructor
+     *
      * @param AmazonConfig $amazonConfig
      * @param ClientFactoryInterface $clientFactory
      * @param Payment\Transaction\Repository $transactionRepository
@@ -72,7 +74,9 @@ class Alexa
     }
 
     /**
-     * @param int $storeId
+     * Issue call through AP SDK
+     *
+     * @param int|string $storeId
      * @param string $method
      * @param array $arguments
      * @return array
@@ -100,8 +104,8 @@ class Alexa
     /**
      * Process SDK client response
      *
-     * @param $clientResponse
-     * @param $functionName
+     * @param mixed $clientResponse
+     * @param string $functionName
      * @return array
      */
     protected function processResponse($clientResponse, $functionName)
@@ -122,6 +126,7 @@ class Alexa
         // Log
         $isError = (!isset($response['status']) || !in_array($response['status'], [200, 201]));
         if ($isError || $this->amazonConfig->isLoggingEnabled()) {
+            // phpcs:ignore PHPCompatibility.FunctionUse.ArgumentFunctionsReportCurrentValue.NeedsInspection
             $debugBackTrace = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT, 2);
             $this->alexaLogger->debug($functionName . ' <- ', $debugBackTrace[1]['args']);
             if ($isError) {
@@ -135,6 +140,8 @@ class Alexa
     }
 
     /**
+     * Get charge permission ID from Amazon Charge
+     *
      * @param \Magento\Sales\Model\Order $order
      * @return string
      */
@@ -159,6 +166,10 @@ class Alexa
     }
 
     /**
+     * Get list of delivery carriers
+     *
+     * This list is populated from amazon-pay-delivery-tracker-supported-carriers.csv.
+     *
      * @return array
      */
     protected function getDeliveryCarriers()
@@ -172,6 +183,8 @@ class Alexa
     }
 
     /**
+     * Get carrier code from a Shipment Tracking instance
+     *
      * @param \Magento\Sales\Model\Order\Shipment\Track $track
      * @return string
      */
@@ -195,6 +208,8 @@ class Alexa
     }
 
     /**
+     * True if Alexa notifications are enabled and AP was used for order payment
+     *
      * @param \Magento\Sales\Model\Order\Shipment\Track $track
      * @return bool
      */
@@ -209,6 +224,8 @@ class Alexa
     }
 
     /**
+     * Add alexa notification to shipment
+     *
      * @param \Magento\Sales\Model\Order\Shipment\Track $track
      * @return array
      */

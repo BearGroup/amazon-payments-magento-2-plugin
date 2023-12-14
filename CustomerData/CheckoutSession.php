@@ -32,6 +32,7 @@ class CheckoutSession
 
     /**
      * CheckoutSession constructor.
+     *
      * @param \Magento\Checkout\Model\Session $session
      * @param \Amazon\Pay\Model\CheckoutSessionManagement $checkoutSessionManagement
      */
@@ -44,11 +45,13 @@ class CheckoutSession
     }
 
     /**
+     * Get button config values
+     *
      * @return array
      */
-    public function getConfig($omitPayloads)
+    public function getConfig()
     {
-        $data = $this->checkoutSessionManagement->getConfig(null, $omitPayloads);
+        $data = $this->checkoutSessionManagement->getConfig();
         if (count($data) > 0) {
             $data = $data[0];
         }
