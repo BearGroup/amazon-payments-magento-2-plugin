@@ -19,6 +19,7 @@ use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Sales\Api\Data\OrderPaymentInterface;
 use Magento\Sales\Api\OrderPaymentRepositoryInterface;
 use Magento\Sales\Api\TransactionRepositoryInterface;
+use Magento\Sales\Api\InvoiceRepositoryInterface;
 use Magento\Sales\Model\Order\Payment\Transaction;
 use Magento\Sales\Model\Order\Payment\Transaction\ManagerInterface;
 
@@ -35,6 +36,11 @@ class PaymentTransactionIdUpdate
     private $paymentRepository;
 
     /**
+     * @var InvoiceRepositoryInterface
+     */
+    private $invoiceRepository;
+
+    /**
      * @var SearchCriteriaBuilder
      */
     private $searchCriteriaBuilder;
@@ -42,15 +48,18 @@ class PaymentTransactionIdUpdate
     /**
      * @param TransactionRepositoryInterface $transactionRepository
      * @param OrderPaymentRepositoryInterface $paymentRepository
+     * @param InvoiceRepositoryInterface $invoiceRepository
      * @param SearchCriteriaBuilder $searchCriteriaBuilder
      */
     public function __construct(
         TransactionRepositoryInterface $transactionRepository,
         OrderPaymentRepositoryInterface $paymentRepository,
+        InvoiceRepositoryInterface $invoiceRepository,
         SearchCriteriaBuilder $searchCriteriaBuilder
     ) {
         $this->transactionRepository = $transactionRepository;
         $this->paymentRepository = $paymentRepository;
+        $this->invoiceRepository = $invoiceRepository;
         $this->searchCriteriaBuilder = $searchCriteriaBuilder;
     }
 
@@ -96,6 +105,8 @@ class PaymentTransactionIdUpdate
                         if ($transaction->getTxnType() == Transaction::TYPE_CAPTURE) {
                             $transaction->setParentTxnId($chargePermissionId);
                             if (strpos($transaction->getTxnId(), '-capture') !== false) {
+                                /*we need to update invoices transaction ids as well*/
+                                $this->updateInvoceTransactionId($transaction->getTxnId());
                                 $transaction->setTxnId($chargeId);
                             }
 
@@ -142,5 +153,25 @@ class PaymentTransactionIdUpdate
             $type,
             $transactionBasedOn
         ];
+    }
+
+    /**
+     * Update Invoices transaction Ids if apply
+     *
+     * @param string $transactionId
+     * @return void
+     */
+    private function updateInvoceTransactionId(string $transactionId) {
+
+        $searchCriteria = $this->searchCriteriaBuilder
+            ->addFilter('transaction_id', $transactionId)
+            ->create();
+
+        $invoicesList = $this->invoiceRepository->getList($searchCriteria)->getItems();
+
+        foreach($invoicesList as $invoice) {
+            $invoice->setTransactionId(substr($transactionId, 0, -8));
+            $this->invoiceRepository->save($invoice);
+        }
     }
 }

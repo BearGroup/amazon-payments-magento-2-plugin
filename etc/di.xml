@@ -440,6 +440,10 @@
         <plugin name="amazon_pay_order_payment" type="Amazon\Pay\Plugin\OrderCurrencyComment" />
     </type>
 
+    <type name="Magento\Sales\Model\Order\Payment">
+        <plugin name="amazon_pay_unset_invoices" type="Amazon\Pay\Plugin\PaymentRefund" />
+    </type>
+
     <preference for="Amazon\Pay\Api\CustomerLinkRepositoryInterface" type="Amazon\Pay\Model\CustomerLinkRepository" />
     <preference for="Amazon\Pay\Api\CustomerLinkManagementInterface" type="Amazon\Pay\Model\CustomerLinkManagement" />
     <preference for="Amazon\Pay\Api\CustomerManagementInterface" type="Amazon\Pay\Model\CustomerManagement" />
