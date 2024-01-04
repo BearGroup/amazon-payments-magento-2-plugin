@@ -39,6 +39,9 @@ class AmazonNameFactory
 
     /**
      * AmazonNameFactory constructor
+     * If name only has firstname (or a single segment),
+     * use a period for last name to satisfy required field
+     * without adding an extra step for customer to checkout
      *
      * @param array $data
      * @return AmazonName
