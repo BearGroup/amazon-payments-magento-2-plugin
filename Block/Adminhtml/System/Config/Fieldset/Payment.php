@@ -56,7 +56,7 @@ class Payment extends \Magento\Paypal\Block\Adminhtml\System\Config\Fieldset\Pay
         Serializer $serializer,
         Client $client,
         SecureHtmlRenderer $secureHtmlRenderer,
-        array $data = [],
+        array $data = []
 
     ) {
         parent::__construct($context, $authSession, $jsHelper, $backendConfig, $data, $secureHtmlRenderer);
