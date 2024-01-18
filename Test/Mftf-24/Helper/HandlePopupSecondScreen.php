@@ -61,7 +61,7 @@ class HandlePopupSecondScreen extends Helper
                         $stepLog[] = 'Popup remained open, switching back to it';
                         $magentoWebDriver->switchToNextTab();
                     }
-    
+
                     $continueAs = $remoteWebDriver->findElements(WebDriverBy::cssSelector($continueButton));
                     $checkout = $remoteWebDriver->findElements(WebDriverBy::cssSelector($checkoutButton));
 
@@ -77,7 +77,7 @@ class HandlePopupSecondScreen extends Helper
                         $stepLog[] = 'Waiting for popup to load and switching back to it';
                         $magentoWebDriver->wait(3);
                         $magentoWebDriver->switchToNextTab();
-                        
+
                         $continueAs = $remoteWebDriver->findElements(WebDriverBy::cssSelector($continueButton));
                     }
 
@@ -94,7 +94,7 @@ class HandlePopupSecondScreen extends Helper
                         );
                         $stepLog[] = 'Click Edit button to return to normal flow';
                         $remoteWebDriver->findElement($editAddressSelector)->click();
-                        
+
                         $remoteWebDriver->wait(30, 100)->until(
                             WebDriverExpectedCondition::numberOfWindowsToBe(2)
                         );
@@ -112,7 +112,7 @@ class HandlePopupSecondScreen extends Helper
                     }
                 } else {
                     $stepLog[] = 'Popup closed, allowing checkout page to load';
-                    $magentoWebDriver->waitForLoadingMaskToDisappear(30);
+                    $magentoWebDriver->waitForPageLoad(30);
                     $stepLog[] = 'Wait for Edit button in address details';
                     $editAddressSelector = WebDriverBy::cssSelector($editShippingButton);
                     $remoteWebDriver->wait(30, 100)->until(
@@ -120,7 +120,7 @@ class HandlePopupSecondScreen extends Helper
                     );
                     $stepLog[] = 'Click Edit button to return to normal flow';
                     $remoteWebDriver->findElement($editAddressSelector)->click();
-                    
+
                     $remoteWebDriver->wait(30, 100)->until(
                         WebDriverExpectedCondition::numberOfWindowsToBe(2)
                     );
@@ -190,9 +190,9 @@ class HandlePopupSecondScreen extends Helper
                 if (count($remoteWebDriver->getWindowHandles()) > 1) {
                     $stepLog[] = 'Popup remained open, switching back to it';
                     $magentoWebDriver->switchToNextTab();
-    
+
                     $loginCancel = $remoteWebDriver->findElements(WebDriverBy::cssSelector($loginCancelButton));
-    
+
                     if (!empty($loginCancel)) {
                         $stepLog[] = 'Cancel login with Amazon and land back on sign-in Magento page';
                         $loginCancel[0]->click();

@@ -25,7 +25,7 @@
         <waitForElement selector="{{AmazonPageSection.emailField}}" time="30" stepKey="apWaitForLogin"/>
         <fillField selector="{{AmazonPageSection.emailField}}" userInput="{{AmazonAccount.email}}" stepKey="apEnterEmail"/>
         <fillField selector="{{AmazonPageSection.passwordField}}" userInput="{{AmazonAccount.password}}" stepKey="apEnterPassword"/>
-        
+
         <helper class="\Amazon\Pay\Test\Mftf\Helper\HandlePopupSecondScreen" method="handleClickOnly" stepKey="handlePopupSecondScreen">
             <argument name="signInButton">{{AmazonPageSection.signInButton}}</argument>
         </helper>
@@ -73,7 +73,9 @@
         <!--Go back to checkout-->
         <waitForElement selector="{{AmazonPageSection.checkoutButton}}" stepKey="waitForAmazonCheckoutButton"/>
         <wait time="1" stepKey="allowContinueButtonToActivate"/>
-        <click selector="{{AmazonPageSection.checkoutButton}}" stepKey="clickAmazonCheckoutButton"/>
+        <helper class="\Amazon\Pay\Test\Mftf\Helper\UseAddressOrPaymentMethod" method="clickAmazonCheckoutButton" stepKey="clickAmazonCheckoutButton">
+            <argument name="checkoutButtonSelector">{{AmazonPageSection.checkoutButton}}</argument>
+        </helper>
 
         <!-- Switch back to main window -->
         <switchToWindow userInput="{$openerName}" stepKey="switchToWindowOpener" />

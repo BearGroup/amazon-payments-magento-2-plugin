@@ -33,7 +33,7 @@ class LoadAddresses extends Helper
             $stepLog[] = 'Found default address';
         } catch (\Exception $e) {
             // Avoid out of memory error sometimes caused by print_r
-            // print_r($e);
+             echo $e->getMessage();
         }
     }
 }
