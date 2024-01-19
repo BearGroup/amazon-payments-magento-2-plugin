@@ -88,12 +88,14 @@ class HandlePopupSecondScreen extends Helper
                         $magentoWebDriver->waitForPageLoad(30);
 
                         $stepLog[] = 'Wait for Edit button in address details';
-                        $editAddressSelector = WebDriverBy::cssSelector($editShippingButton);
-                        $remoteWebDriver->wait(30, 100)->until(
-                            WebDriverExpectedCondition::elementToBeClickable($editAddressSelector)
-                        );
+                        $magentoWebDriver->waitForElementClickable($editShippingButton);
+//                        $editAddressSelector = WebDriverBy::cssSelector($editShippingButton);
+//                        $remoteWebDriver->wait(30, 100)->until(
+//                            WebDriverExpectedCondition::elementToBeClickable($editAddressSelector)
+//                        );
                         $stepLog[] = 'Click Edit button to return to normal flow';
-                        $remoteWebDriver->findElement($editAddressSelector)->click();
+                        $magentoWebDriver->click($editShippingButton);
+//                        $remoteWebDriver->findElement($editAddressSelector)->click();
 
                         $remoteWebDriver->wait(30, 100)->until(
                             WebDriverExpectedCondition::numberOfWindowsToBe(2)
@@ -114,12 +116,14 @@ class HandlePopupSecondScreen extends Helper
                     $stepLog[] = 'Popup closed, allowing checkout page to load';
                     $magentoWebDriver->waitForPageLoad(30);
                     $stepLog[] = 'Wait for Edit button in address details';
-                    $editAddressSelector = WebDriverBy::cssSelector($editShippingButton);
-                    $remoteWebDriver->wait(30, 100)->until(
-                        WebDriverExpectedCondition::elementToBeClickable($editAddressSelector)
-                    );
+                    $magentoWebDriver->waitForElementClickable($editShippingButton, 10);
+//                    $editAddressSelector = WebDriverBy::cssSelector($editShippingButton);
+//                    $remoteWebDriver->wait(30, 100)->until(
+//                        WebDriverExpectedCondition::elementToBeClickable($editAddressSelector)
+//                    );
                     $stepLog[] = 'Click Edit button to return to normal flow';
-                    $remoteWebDriver->findElement($editAddressSelector)->click();
+                    $magentoWebDriver->click($editShippingButton);
+//                    $remoteWebDriver->findElement($editAddressSelector)->click();
 
                     $remoteWebDriver->wait(30, 100)->until(
                         WebDriverExpectedCondition::numberOfWindowsToBe(2)
