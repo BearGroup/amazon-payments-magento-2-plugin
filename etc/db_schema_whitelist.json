@@ -28,5 +28,24 @@
             "AMAZON_CUSTOMER_CUSTOMER_ID": true,
             "AMAZON_CUSTOMER_CUSTOMER_ID_CUSTOMER_ENTITY_ENTITY_ID": true
         }
+    },
+    "amazon_stat": {
+        "column": {
+            "entity_id": true,
+            "quote_id": true,
+            "am_checkout_session_id": true,
+            "am_customer_id": true,
+            "am_customer_email": true,
+            "order_id": true,
+            "stat_type": true,
+            "value": true,
+            "order_status": true,
+            "order_totals": true,
+            "created_at": true,
+            "updated_at": true
+        },
+        "constraint": {
+            "PRIMARY": true
+        }
     }
 }

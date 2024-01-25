@@ -26,6 +26,10 @@
     <preference for="Amazon\Pay\Domain\AmazonNameInterface" type="Amazon\Pay\Domain\AmazonName" />
     <preference for="Amazon\Pay\Domain\AmazonAddressInterface" type="Amazon\Pay\Domain\AmazonAddress" />
 
+    <preference for="Amazon\Pay\Api\Data\StatisticInterface" type="Amazon\Pay\Model\Statistic" />
+    <preference for="Amazon\Pay\Api\StatisticRepositoryInterface" type="Amazon\Pay\Model\StatisticRepository" />
+    <preference for="Amazon\Pay\Api\Data\StatisticSearchResultsInterface" type="Magento\Framework\Api\SearchResults" />
+
     <type name="Amazon\Pay\Domain\AmazonAddressFactory">
         <arguments>
             <argument name="addressDecoratorPool" xsi:type="array">

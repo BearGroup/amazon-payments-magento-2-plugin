@@ -35,4 +35,21 @@
         </constraint>
         <constraint xsi:type="foreign" referenceId="AMAZON_CUSTOMER_CUSTOMER_ID_CUSTOMER_ENTITY_ENTITY_ID" table="amazon_customer" column="customer_id" referenceTable="customer_entity" referenceColumn="entity_id" onDelete="CASCADE"/>
     </table>
+    <table name="amazon_stat" resource="default" engine="innodb" comment="Amazon PayV2 Statistics">
+        <column xsi:type="int" name="entity_id" padding="10" unsigned="true" nullable="false" identity="true" comment="Entity_id"/>
+        <column xsi:type="int" name="order_id" padding="10" unsigned="true" nullable="false" identity="false" comment="Order_id"/>
+        <column xsi:type="int" name="quote_id" unsigned="true" nullable="true" identity="false" comment="Quote ID"/>
+        <column xsi:type="varchar" name="am_checkout_session_id" unsigned="true" nullable="true" identity="false" length="255" comment="Amazon Checkout Session ID"/>
+        <column xsi:type="varchar" name="am_customer_id" unsigned="true" nullable="true" identity="false" length="255" comment="Amazon Customer ID"/>
+        <column xsi:type="varchar" name="am_customer_email" nullable="false" length="255" comment="Amazon Customer E-Mail"/>
+        <column xsi:type="varchar" name="stat_type" nullable="false" length="100" comment="Statistic Type"/>
+        <column xsi:type="varchar" name="value" nullable="false" length="255" comment="Statistic value"/>
+        <column xsi:type="varchar" name="order_status" nullable="false" length="255" comment="Order Status"/>
+        <column xsi:type="varchar" name="order_totals" nullable="false" length="255" comment="Order Totals"/>
+        <column xsi:type="datetime" name="created_at" nullable="true" comment="Created At" default="CURRENT_TIMESTAMP" on_update="false"/>
+        <column xsi:type="datetime" name="updated_at" nullable="true" comment="Updated At" default="CURRENT_TIMESTAMP" on_update="true"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="entity_id"/>
+        </constraint>
+    </table>
 </schema>
