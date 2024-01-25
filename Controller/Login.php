@@ -16,26 +16,27 @@
 namespace Amazon\Pay\Controller;
 
 use Amazon\Pay\Api\CheckoutSessionManagementInterface;
+use Amazon\Pay\Api\CustomerLinkManagementInterface;
 use Amazon\Pay\Api\Data\AmazonCustomerInterface;
+use Amazon\Pay\Api\Data\StatisticInterface;
 use Amazon\Pay\Domain\AmazonCustomerFactory;
-use Amazon\Pay\Model\AmazonConfig;
-use Amazon\Pay\Model\Validator\AccessTokenRequestValidator;
-use Magento\Customer\Model\Account\Redirect as AccountRedirect;
-use Amazon\Pay\Helper\Session;
-use Amazon\Pay\Helper\Customer as CustomerHelper;
-use Amazon\Pay\Model\Adapter\AmazonPayAdapter;
 use Amazon\Pay\Domain\ValidationCredentials;
+use Amazon\Pay\Helper\Customer as CustomerHelper;
+use Amazon\Pay\Helper\Session;
+use Amazon\Pay\Helper\Statistic;
+use Amazon\Pay\Model\Adapter\AmazonPayAdapter;
+use Amazon\Pay\Model\AmazonConfig;
+use Amazon\Pay\Model\Customer\MatcherInterface;
+use Amazon\Pay\Model\Validator\AccessTokenRequestValidator;
 use Magento\Customer\Api\AccountManagementInterface;
-use Magento\Customer\Api\Data\CustomerInterface;
+use Magento\Customer\Model\Account\Redirect as AccountRedirect;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Customer\Model\Url;
 use Magento\Framework\App\Action\Action;
 use Magento\Framework\App\Action\Context;
+use Magento\Framework\UrlInterface;
 use Magento\Store\Model\StoreManager;
 use Psr\Log\LoggerInterface;
-use Amazon\Pay\Model\Customer\MatcherInterface;
-use Amazon\Pay\Api\CustomerLinkManagementInterface;
-use Magento\Framework\UrlInterface;
 
 /**
  * Login with token controller
@@ -124,6 +125,11 @@ abstract class Login extends Action
     protected $customerHelper;
 
     /**
+     * @var \Amazon\Pay\Controller\Statistic\Statistic
+     */
+    protected $statisticHelper;
+
+    /**
      * Login constructor.
      *
      * @param Context $context
@@ -162,7 +168,8 @@ abstract class Login extends Action
         UrlInterface $url,
         AccountManagementInterface $accountManagement,
         CheckoutSessionManagementInterface $checkoutSessionManagement,
-        CustomerHelper $customerHelper
+        CustomerHelper $customerHelper,
+        Statistic $statisticHelper
     ) {
         $this->amazonCustomerFactory       = $amazonCustomerFactory;
         $this->amazonAdapter               = $amazonAdapter;
@@ -180,6 +187,8 @@ abstract class Login extends Action
         $this->accountManagement           = $accountManagement;
         $this->checkoutSessionManagement   = $checkoutSessionManagement;
         $this->customerHelper              = $customerHelper;
+        $this->statisticHelper             = $statisticHelper;
+
         parent::__construct($context);
     }
 
@@ -251,6 +260,15 @@ abstract class Login extends Action
             $this->customerLinkManagement->updateLink($customerData->getId(), $amazonCustomer->getId());
         }
 
+        $statisticData = [
+            'stat_type' => StatisticInterface::LWA_SIGN_IN_SUCCESS,
+            'am_customer_email' => $amazonCustomer->getEmail(),
+            'am_customer_id' => $amazonCustomer->getId(),
+            'value' => 'Login - New Customer Created'
+        ];
+
+        $this->statisticHelper->save($statisticData);
+
         return $customerData;
     }
 
@@ -262,6 +280,15 @@ abstract class Login extends Action
      */
     protected function createCustomer(AmazonCustomerInterface $amazonCustomer)
     {
+        $statisticData = [
+            'stat_type' => StatisticInterface::LWA_SIGN_IN_CUSTOMER_CREATED,
+            'am_customer_email' => $amazonCustomer->getEmail(),
+            'am_customer_id' => $amazonCustomer->getId(),
+            'value' => 'Login - New Customer Created'
+        ];
+
+        $this->statisticHelper->save($statisticData);
+
         return $this->customerHelper->createCustomer($amazonCustomer);
     }
 }

@@ -15,6 +15,7 @@
  */
 namespace Amazon\Pay\Controller\Login;
 
+use Amazon\Pay\Api\Data\StatisticInterface;
 use Amazon\Pay\Domain\ValidationCredentials;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Exception\ValidatorException;
@@ -85,6 +86,26 @@ class Checkout extends \Amazon\Pay\Controller\Login
         }
 
         $checkoutUrl = $this->amazonConfig->getCheckoutReviewUrlPath();
+
+        //Statistic data for session_init
+        $amCustomerEmail = null;
+        if (isset($userInfo)) {
+            $amCustomerEmail = $userInfo['email'];
+        } elseif (isset($buyerInfo)) {
+            $amCustomerEmail = $buyerInfo['email'];
+        }
+
+        $statisticData = [
+            'stat_type' => StatisticInterface::SESSION_INIT,
+            'quote_id' => !empty($quote) ? $quote->getId() : null,
+            'am_checkout_session_id' => isset($checkoutSession) ? $checkoutSession['checkoutSessionId'] : null,
+            'am_customer_email' => $amCustomerEmail,
+            'am_customer_id' => isset($buyerInfo) ? $buyerInfo['buyerId'] : null,
+            'value' => 'session initiated'
+        ];
+
+        $this->statisticHelper->save($statisticData);
+
         return $this->_redirect($checkoutUrl, ['_query' => ['amazonCheckoutSessionId' => $checkoutSessionId]]);
     }
 }

@@ -17,6 +17,7 @@
 namespace Amazon\Pay\Model;
 
 use Amazon\Pay\Api\Data\CheckoutSessionInterface;
+use Amazon\Pay\Api\Data\StatisticInterface;
 use Amazon\Pay\Gateway\Config\Config;
 use Amazon\Pay\Helper\Session;
 use Amazon\Pay\Model\Config\Source\AuthorizationMode;
@@ -48,6 +49,9 @@ use Magento\Integration\Model\Oauth\TokenFactory as TokenModelFactory;
 use Magento\Authorization\Model\UserContextInterface as UserContext;
 use Magento\Framework\Phrase\Renderer\Translate as Translate;
 use Magento\SalesRule\Model\Coupon\UpdateCouponUsages;
+use Amazon\Pay\Helper\Statistic as StatisticHelper;
+use Amazon\Pay\Api\Data\StatisticInterfaceFactory;
+use Amazon\Pay\Api\Data\StatisticErrorInterfaceFactory;
 
 class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManagementInterface
 {
@@ -240,6 +244,21 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     private $updateCouponUsages;
 
     /**
+     * @var StatisticInterfaceFactory
+     */
+    private $statisticFactory;
+
+    /**
+     * @var StatisticErrorInterfaceFactory
+     */
+    private $statisticErrorFactory;
+
+    /**
+     * @var StatisticHelper
+     */
+    private $statisticHelper;
+
+    /**
      * CheckoutSessionManagement constructor.
      *
      * @param \Magento\Store\Model\StoreManagerInterface $storeManager
@@ -277,6 +296,9 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * @param Session $session
      * @param Translate $translationRenderer
      * @param UpdateCouponUsages $updateCouponUsages
+     * @param StatisticInterfaceFactory $statisticFactory
+     * @param StatisticErrorInterfaceFactory $statisticErrorFactory
+     * @param StatisticHelper $statisticHelper
      */
     public function __construct(
         \Magento\Store\Model\StoreManagerInterface $storeManager,
@@ -313,7 +335,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         \Amazon\Pay\Logger\Logger $logger,
         Session $session,
         Translate $translationRenderer,
-        UpdateCouponUsages $updateCouponUsages
+        UpdateCouponUsages $updateCouponUsages,
+        StatisticInterfaceFactory $statisticFactory,
+        StatisticErrorInterfaceFactory $statisticErrorFactory,
+        StatisticHelper $statisticHelper
+
     ) {
         $this->storeManager = $storeManager;
         $this->quoteIdMaskFactory = $quoteIdMaskFactory;
@@ -350,6 +376,9 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         $this->session = $session;
         $this->translationRenderer = $translationRenderer;
         $this->updateCouponUsages = $updateCouponUsages;
+        $this->statisticFactory = $statisticFactory;
+        $this->statisticErrorFactory = $statisticErrorFactory;
+        $this->statisticHelper = $statisticHelper;
     }
 
     /**
@@ -721,11 +750,20 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     public function completeCheckoutSession($amazonSessionId, $cartId = null)
     {
         if (!$quote = $this->session->getQuoteFromIdOrSession($cartId)) {
+
             return ['success' => false];
         }
 
         if (empty($amazonSessionId) || !$this->canCheckoutWithAmazon($quote) || !$this->canSubmitQuote($quote)) {
             $this->logger->debug("Unable to complete Amazon Pay checkout. Can't submit quote id: " . $quote->getId());
+
+            $this->saveStatisticError(
+                'Unable to complete Amazon Pay checkout. Can\'t submit quote id: ' . $quote->getId(),
+                $quote->getId(),
+                null,
+                $amazonSessionId
+            );
+
             return [
                 'success' => false,
                 'message' => $this->getTranslationString('Unable to complete Amazon Pay checkout'),
@@ -742,6 +780,14 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 $amazonSessionId
             );
             if ($amazonSession['statusDetails']['state'] == 'Canceled') {
+
+                $this->saveStatisticError(
+                    'Checkout Canceled - Message: ' . $this->getCanceledMessage($amazonSession),
+                    $quote->getId(),
+                    null,
+                    $amazonSessionId
+                );
+
                 return [
                     'success' => false,
                     'message' => $this->getCanceledMessage($amazonSession),
@@ -772,6 +818,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
             $orderId = $this->cartManagement->placeOrder($quote->getId());
             $order = $this->orderRepository->get($orderId);
+
             // @TODO: associate token with payment?
             $result = [
                 'success' => true,
@@ -787,6 +834,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             );
             $completeCheckoutStatus = $amazonCompleteCheckoutResult['status'] ?? '404';
             if (!preg_match('/^2\d\d$/', $completeCheckoutStatus)) {
+
                 // Something went wrong, but the order has already been placed, so cancelling it
                 $this->cancelOrder($order, $quote);
 
@@ -802,6 +850,15 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                         true
                     );
                 }
+
+                $this->saveStatisticError(
+                    'Canceled due to checkout session failed to complete.',
+                    $quote->getId(),
+                    $order,
+                    $amazonSessionId,
+                    $amazonSession['buyer']['email'],
+                    $amazonSession['buyer']['buyerId']
+                );
 
                 return [
                     'success' => false,
@@ -865,6 +922,16 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                     break;
             }
 
+            $this->saveStatistic(
+                StatisticInterface::EXPRESS_CHECKOUT_PAYMENT_STATE,
+                $chargeState,
+                $quote->getId(),
+                $order,
+                $amazonSessionId,
+                $amazonSession['buyer']['email'],
+                $amazonSession['buyer']['buyerId']
+            );
+
             // relies on updateTransactionId to save the $payment
             $payment->setAdditionalInformation(
                 'charge_permission_id',
@@ -892,15 +959,43 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                     'Canceled due to technical issue: ' . $e->getMessage(),
                     true
                 );
+
+                $this->saveStatisticError(
+                    'Cancelling order due to technical issue: ' . $e->getMessage(),
+                    $quote->getId(),
+                    $order,
+                    $amazonSessionId,
+                    $amazonSession['buyer']['email'],
+                    $amazonSession['buyer']['buyerId'],
+                );
             }
 
             // cancel order
             if (isset($order)) {
                 $this->cancelOrder($order, $quote);
+
+                $this->saveStatisticError(
+                    'Order Cancelled.',
+                    $quote->getId(),
+                    $order,
+                    $amazonSession['buyer']['email'],
+                    $amazonSession['buyer']['buyerId'],
+                );
             }
 
             throw $e;
         }
+
+        $this->saveStatistic(
+            StatisticInterface::SESSION_COMPLETE,
+            'Amazon checkout session finished.',
+            $quote->getId(),
+            $order,
+            $amazonSessionId,
+            $amazonSession['buyer']['email'],
+            $amazonSession['buyer']['buyerId']
+        );
+
         return $result;
     }
 
@@ -983,6 +1078,16 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 'message' => __('Amazon Sign-in is disabled')
             ];
 
+            $this->saveStatistic(
+                StatisticInterface::LWA_SIGN_IN_DISABLED,
+                'Amazon Sign-in is disabled.',
+                null,
+                null,
+                null,
+                null,
+                $buyerToken
+            );
+
             return [$result];
         }
 
@@ -1007,6 +1112,16 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                         'customer_bearer_token' => $customerToken
                     ];
 
+                    $this->saveStatistic(
+                        StatisticInterface::LWA_SIGN_IN_SUCCESS,
+                        'Amazon Sign-in process success.',
+                        null,
+                        null,
+                        null,
+                        $amazonCustomer['email'],
+                        $amazonCustomer['id']
+                    );
+
                 } else {
                     // Magento customer exists with same email used for Sign in with Amazon
                     $result = [
@@ -1015,14 +1130,46 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                         'message' => __('A shop account for this email address already exists. Please enter your ' .
                             'shop accounts password to log in without leaving the shop.')
                     ];
+
+                    $this->saveStatistic(
+                        StatisticInterface::LWA_SIGN_IN_ERROR,
+                        'E-mail address already exists.',
+                        null,
+                        null,
+                        null,
+                        $amazonCustomer['email'],
+                        $amazonCustomer['id']
+                    );
                 }
 
             } else {
                 $result = $this->getBuyerIdError($buyerToken);
+
+                $this->saveStatistic(
+                    StatisticInterface::LWA_SIGN_IN_ERROR,
+                    'Amazon Customer not found. Result error: ' . json_encode($result),
+                    null,
+                    null,
+                    null,
+                    null,
+                    $buyerToken
+                );
+
             }
 
         } catch (\Exception $e) {
             $result = $this->getLoginError($e);
+
+            $this->saveStatistic(
+                StatisticInterface::LWA_SIGN_IN_ERROR,
+                'Amazon Customer catched error: ' . json_encode($result),
+                null,
+                null,
+                null,
+                null,
+                $buyerToken
+            );
+
         }
 
         return [$result];
@@ -1128,5 +1275,64 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         }
 
         return [$result];
+    }
+
+    /**
+     * @param $type
+     * @param $message
+     * @param $quoteId
+     * @param $order
+     * @param $amSessionId
+     * @param $amCustomerEmail
+     * @param $amCustomerId
+     * @return void
+     */
+    public function saveStatistic(
+        $type, $message, $quoteId = null, $order = null, $amSessionId = null, $amCustomerEmail = null, $amCustomerId = null): void
+    {
+
+        $orderGrandTotal    = $order->getGrandTotal() ?: '0.00';
+        $orderTotalInvoiced = $order->getTotalInvoiced() ?: '0.00';
+        $orderTotalCanceled = $order->getTotalCanceled() ?: '0.00';
+        $orderTotalRefunded = $order->getTotalRefunded() ?: '0.00';
+
+        $orderTotals = !empty($order) ? 'Grand Total: ' . $orderGrandTotal . ' | Total Invoiced: ' . $orderTotalInvoiced .
+             ' | Total Canceled: ' . $orderTotalCanceled . ' | Total refunded: ' . $orderTotalRefunded : null;
+
+        $statisticData = [
+            'stat_type' => $type,
+            'order_id' => !empty($order) ? $order->getEntityId() : null,
+            'order_status' => !empty($order) ? $order->getStatus() : null,
+            'order_totals' => $orderTotals,
+            'quote_id' => $quoteId,
+            'am_checkout_session_id' => $amSessionId,
+            'am_customer_email' => $amCustomerEmail,
+            'am_customer_id' => $amCustomerId,
+            'value' => $message
+        ];
+
+        $this->statisticHelper->save($statisticData);
+    }
+
+    /**
+     * @param $message
+     * @param $quoteId
+     * @param $order
+     * @param $amSessionId
+     * @param $amCustomerEmail
+     * @param $amCustomerId
+     * @return void
+     */
+    public function saveStatisticError($message, $quoteId = null, $order = null, $amSessionId = null, $amCustomerEmail = null, $amCustomerId = null): void
+    {
+        $this->saveStatistic(
+            StatisticInterface::EXPRESS_CHECKOUT_ERROR,
+            $message,
+            $quoteId,
+            $order,
+            $amSessionId,
+            $amCustomerEmail,
+            $amCustomerId
+        );
     }
 }
