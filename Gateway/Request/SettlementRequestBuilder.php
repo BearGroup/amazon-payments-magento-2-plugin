@@ -128,7 +128,7 @@ class SettlementRequestBuilder implements BuilderInterface
 
         $data = [
             'store_id' => $storeId,
-            'charge_id' => rtrim($paymentDO->getPayment()->getParentTransactionId(), '-capture'),
+            'charge_id' => $paymentDO->getPayment()->getAdditionalInformation()['charge_id'],
             'amount' => $total,
             'currency_code' => $currencyCode,
         ];

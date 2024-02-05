@@ -15,15 +15,57 @@
  */
 namespace Amazon\Pay\Plugin;
 
+use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Sales\Api\Data\OrderPaymentInterface;
+use Magento\Sales\Api\OrderPaymentRepositoryInterface;
+use Magento\Sales\Api\TransactionRepositoryInterface;
+use Magento\Sales\Api\InvoiceRepositoryInterface;
 use Magento\Sales\Model\Order\Payment\Transaction;
 use Magento\Sales\Model\Order\Payment\Transaction\ManagerInterface;
 
 class PaymentTransactionIdUpdate
 {
     /**
+     * @var TransactionRepositoryInterface
+     */
+    private $transactionRepository;
+
+    /**
+     * @var OrderPaymentRepositoryInterface
+     */
+    private $paymentRepository;
+
+    /**
+     * @var InvoiceRepositoryInterface
+     */
+    private $invoiceRepository;
+
+    /**
+     * @var SearchCriteriaBuilder
+     */
+    private $searchCriteriaBuilder;
+
+    /**
+     * @param TransactionRepositoryInterface $transactionRepository
+     * @param OrderPaymentRepositoryInterface $paymentRepository
+     * @param InvoiceRepositoryInterface $invoiceRepository
+     * @param SearchCriteriaBuilder $searchCriteriaBuilder
+     */
+    public function __construct(
+        TransactionRepositoryInterface $transactionRepository,
+        OrderPaymentRepositoryInterface $paymentRepository,
+        InvoiceRepositoryInterface $invoiceRepository,
+        SearchCriteriaBuilder $searchCriteriaBuilder
+    ) {
+        $this->transactionRepository = $transactionRepository;
+        $this->paymentRepository = $paymentRepository;
+        $this->invoiceRepository = $invoiceRepository;
+        $this->searchCriteriaBuilder = $searchCriteriaBuilder;
+    }
+
+    /**
      * Set special transaction ID if AP transaction is voided
-     *
+     * 
      * @param ManagerInterface $subject
      * @param OrderPaymentInterface $payment
      * @param string $type
@@ -38,13 +80,72 @@ class PaymentTransactionIdUpdate
         $transactionBasedOn = false
     ) {
         $paymentMethodTitle = $payment->getAdditionalInformation('method_title') ?? '';
-        if (strpos($paymentMethodTitle, 'Amazon Pay') !== false && $type == Transaction::TYPE_VOID) {
-            $chargePermissionId = $payment->getAdditionalInformation('charge_permission_id');
-            if (empty($chargePermissionId)) {
-                $transactionId = explode('-', $payment->getAuthorizationTransaction()->getTxnId());
-                $chargePermissionId = implode('-', array_slice($transactionId, 0, 3));
+        if (strpos($paymentMethodTitle, 'Amazon Pay') !== false) {
+            // Update existing IDs if necessary
+            $authTransaction = $payment->getAuthorizationTransaction();
+
+            if ($authTransaction) {
+                $authTxnId = $authTransaction->getTxnId();
+
+                if (strpos($authTxnId, '-C') !== false) {
+                    // Auth txn ID needs to be updated to charge permission ID
+                    $chargeId = $authTxnId;
+                    $chargePermissionId = substr($chargeId, 0, -8);
+                    $authTransaction->setTxnId($chargePermissionId);
+
+                    $this->transactionRepository->save($authTransaction);
+
+                    // Update other transactions on payment
+                    $searchCriteria = $this->searchCriteriaBuilder
+                        ->addFilter('payment_id', $payment->getEntityId())
+                        ->create();
+                    $transactionsList = $this->transactionRepository->getList($searchCriteria)->getItems();
+
+                    foreach ($transactionsList as $transaction) {
+                        if ($transaction->getTxnType() == Transaction::TYPE_CAPTURE) {
+                            $transaction->setParentTxnId($chargePermissionId);
+                            if (strpos($transaction->getTxnId(), '-capture') !== false) {
+                                /*we need to update invoices transaction ids as well*/
+                                $this->updateInvoceTransactionId($transaction->getTxnId());
+                                $transaction->setTxnId($chargeId);
+                            }
+
+                            $this->transactionRepository->save($transaction);
+                        }
+
+                        if ($transaction->getTxnType() == Transaction::TYPE_REFUND) {
+                            if (strpos($transaction->getParentTxnId(), '-capture') !== false) {
+                                $transaction->setParentTxnId($chargeId);
+                                $this->transactionRepository->save($transaction);
+                            }
+                        }
+
+                        if ($transaction->getTxnType() == Transaction::TYPE_VOID) {
+                            $transaction->setParentTxnId($chargePermissionId);
+                            $this->transactionRepository->save($transaction);
+                        }
+                    }
+
+                    // Update payment additional information and last transaction ID
+                    $payment->setAdditionalInformation('charge_id', $chargeId);
+                    $payment->unsAdditionalInformation('charge_permission_id');
+
+                    if ($payment->getLastTransId() === $authTxnId) {
+                        $payment->setLastTransId($chargePermissionId);
+                    }
+
+                    if (strpos($payment->getLastTransId(), '-capture') !== false) {
+                        $payment->setLastTransId($chargeId);
+                    }
+
+                    $this->paymentRepository->save($payment);
+                }
             }
-            $payment->setTransactionId($chargePermissionId . '-void');
+            
+            if ($type == Transaction::TYPE_VOID) {
+                $chargePermissionId = $payment->getAuthorizationTransaction()->getTxnId();
+                $payment->setTransactionId($chargePermissionId . '-void');
+            }
         }
 
         return [
@@ -52,5 +153,25 @@ class PaymentTransactionIdUpdate
             $type,
             $transactionBasedOn
         ];
+    }
+
+    /**
+     * Update Invoices transaction Ids if apply
+     *
+     * @param string $transactionId
+     * @return void
+     */
+    private function updateInvoceTransactionId(string $transactionId) {
+
+        $searchCriteria = $this->searchCriteriaBuilder
+            ->addFilter('transaction_id', $transactionId)
+            ->create();
+
+        $invoicesList = $this->invoiceRepository->getList($searchCriteria)->getItems();
+
+        foreach($invoicesList as $invoice) {
+            $invoice->setTransactionId(substr($transactionId, 0, -8));
+            $this->invoiceRepository->save($invoice);
+        }
     }
 }

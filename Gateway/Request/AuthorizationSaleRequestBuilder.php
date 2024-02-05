@@ -64,7 +64,7 @@ class AuthorizationSaleRequestBuilder implements BuilderInterface
         return [
             'quote_id' => $payment->getOrder()->getQuoteId(),
             'amazon_checkout_session_id' => $amazonCheckoutSessionId,
-            'charge_permission_id' => $payment->getAdditionalInformation('charge_permission_id'),
+            'charge_permission_id' => $payment->getParentTransactionId(),
             'amount' => $total,
         ];
     }

@@ -598,21 +598,21 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * Swaps the checkoutSessionId that was originally stored on the sales_payment_transaction record with the
      * real payment charge (transaction) id. Also updates the payment's last transaction id to match.
      *
-     * @param string $chargeId
+     * @param string $chargePermissionId
      * @param \Magento\Sales\Api\Data\OrderPaymentInterface $payment
      * @param mixed $transaction
      * @return void
      */
-    private function updateTransactionId($chargeId, $payment, $transaction)
+    private function updateTransactionId($chargePermissionId, $payment, $transaction)
     {
-        $transaction->setTxnId($chargeId);
+        $transaction->setTxnId($chargePermissionId);
         $this->transactionRepository->save($transaction);
 
-        $payment->setLastTransId($chargeId);
+        $payment->setLastTransId($chargePermissionId);
         $this->paymentRepository->save($payment);
 
         if ($invoice = $payment->getCreatedInvoice()) {
-            $invoice->setTransactionId($chargeId)->save();
+            $invoice->setTransactionId($chargePermissionId)->save();
         }
     }
 
@@ -1291,11 +1291,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
             // relies on updateTransactionId to save the $payment
             $payment->setAdditionalInformation(
-                'charge_permission_id',
-                $amazonCompleteCheckoutResult['chargePermissionId']
+                'charge_id',
+                $chargeId
             );
 
-            $this->updateTransactionId($chargeId, $payment, $transaction);
+            $this->updateTransactionId($amazonCharge['chargePermissionId'], $payment, $transaction);
             $this->updateVaultToken(
                 $amazonSessionId,
                 $amazonCompleteCheckoutResult['chargePermissionId'],
