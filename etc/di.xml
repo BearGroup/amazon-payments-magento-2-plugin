@@ -440,6 +440,7 @@
         <plugin name="amazon_pay_order_payment" type="Amazon\Pay\Plugin\OrderCurrencyComment" />
     </type>
 
+	<!-- Unset invoices  -->
     <type name="Magento\Sales\Model\Order\Payment">
         <plugin name="amazon_pay_unset_invoices" type="Amazon\Pay\Plugin\PaymentRefund" />
     </type>
