@@ -860,7 +860,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
                     if ($this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC_THEN_ASYNC) {
                         $this->setProcessing($payment);
-                        $this->addCaptureComment($payment, $quote, $chargeId);
+                        // capture and invoice on the Magento side
+                        $this->asyncCharge->capture($order, $chargeId, $quote->getGrandTotal());
                     }
                     break;
             }
