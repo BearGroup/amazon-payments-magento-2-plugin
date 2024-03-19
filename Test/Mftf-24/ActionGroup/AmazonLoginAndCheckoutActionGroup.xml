@@ -47,11 +47,6 @@
             <argument name="defaultAddressSelector">{{AmazonPageSection.addressId}}</argument>
         </helper>
 
-        <!-- <helper class="\Amazon\Pay\Test\Mftf\Helper\EnsurePopupLoaded" method="reloadPopup" stepKey="reloadPopupIfNecessary">
-            <argument name="openerName">{$openerName}</argument>
-            <argument name="continueButton">{{AmazonPageSection.continueButton}}</argument>
-        </helper> -->
-
         <!--Get shipping address information-->
         <grabAttributeFrom selector="{{AmazonPageSection.addressId}}" userInput="data-address_id" stepKey="amazonAddressId"/>
         <grabAttributeFrom selector="{{AmazonPageSection.addressDetails({$amazonAddressId})}}" userInput="data-name_on_address" stepKey="amazonAddressName"/>
