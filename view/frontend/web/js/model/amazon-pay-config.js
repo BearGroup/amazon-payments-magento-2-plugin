@@ -13,11 +13,12 @@
  * permissions and limitations under the License.
  */
 define(
-    ['uiRegistry'],
-    function (registry) {
+    ['jquery'],
+    function ($) {
         'use strict';
 
-        var config = registry.get('amazonPay') || {};
+        var $configElement = $('[data-amazon-pay-config]');
+        var config = $configElement.data('amazon-pay-config') || {};
 
         return {
             /**
@@ -38,7 +39,7 @@ define(
              * Get config value
              */
             getValue: function (key, defaultValue) {
-                if (config.hasOwnProperty(key)) {
+                if (config && config.hasOwnProperty(key)) {
                     return config[key];
                 } else if (defaultValue !== undefined) {
                     return defaultValue;
@@ -49,9 +50,8 @@ define(
              * Is amazonPay defined?
              */
             isDefined: function () {
-                return registry.get('amazonPay') !== undefined;
+                return Object.keys(config).length > 0;
             }
-
         };
     }
 );

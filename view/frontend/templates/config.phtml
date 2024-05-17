@@ -16,21 +16,21 @@
 ?>
 <?php /* @var $block \Amazon\Pay\Block\Config */ ?>
 <?php if ($block->isEnabled()): ?>
+    <div data-amazon-pay-config='<?= $block->getJsonConfig() ?>'></div>
     <?php
     $frontName = $block->getRequest()->getFrontName();
     $pathInfo = $block->getRequest()->getPathInfo();
     ?>
-<script>
-
-    require (['uiRegistry'], function(registry) {
-        registry.set('amazonPay', <?= /* @noEscape */ $block->getJsonConfig() ?>)
-    });
-
-    <?php if ($frontName != 'checkout' || (strpos($pathInfo, 'checkout/cart') !== false)): ?>
-    require (['Amazon_Pay/js/model/storage'], function(amazonStorage) {
-        amazonStorage.clearAmazonCheckout();
-    });
+    <?php if ($frontName != 'checkout' || strpos($pathInfo, 'checkout/cart') !== false): ?>
+        <script type="text/x-magento-init">
+            {
+                "*": {
+                    "Amazon_Pay/js/clear-amazon-checkout": {
+                        "frontName": "<?= $frontName ?>",
+                        "pathInfo": "<?= $pathInfo ?>"
+                    }
+                }
+            }
+        </script>
     <?php endif; ?>
-
-</script>
 <?php endif ?>
