@@ -82,6 +82,14 @@ class AutoKeyExchangeAdmin extends \Magento\Framework\View\Element\Template
     }
 
     /**
+     * Already upgraded
+     */
+    public function hasCV2PublicKeyId()
+    {
+        return (bool)$this->keyUpgrade->getExistingPublicKeyId();
+    }
+
+    /**
      * Return Key Upgrade info
      */
     public function getKeyUpgradeConfig()
