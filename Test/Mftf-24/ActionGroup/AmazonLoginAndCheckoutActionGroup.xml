@@ -62,6 +62,8 @@
         <click selector="{{AmazonPageSection.changePaymentButton}}" stepKey="clickChangePaymentMethod"/>
         <wait time="1" stepKey="allowCardsToPopulate"/>
         <waitForElement selector="{{AmazonPageSection.paymentMethodRadioButton(cc)}}" stepKey="waitForPaymentRadioButton"/>
+        <scrollTo selector="{{AmazonPageSection.paymentMethodRadioButton(cc)}}" stepKey="scrollToPaymentRadioButton"/>
+        <wait time="1" stepKey="waitForPaymentRadioButton2"/>
         <click selector="{{AmazonPageSection.paymentMethodRadioButton(cc)}}" stepKey="clickPaymentRadioButton"/>
         <wait time="1" stepKey="allowSelectButtonToPopulate"/>
         <waitForElement selector="{{AmazonPageSection.usePaymentButton}}" stepKey="waitForSelectButton"/>
