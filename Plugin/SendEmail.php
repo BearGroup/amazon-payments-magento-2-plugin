@@ -35,7 +35,7 @@ class SendEmail
 
     /**
      * SendEmail constructor
-     * 
+     *
      * @param OrderSender $orderSender
      * @param ScopeConfigInterface $scopeConfig
      */
@@ -59,7 +59,6 @@ class SendEmail
         if ($this->scopeConfig->getValue('sales_email/order/enabled')) {
             /** @var Payment $payment */
             $payment = $subject->getPayment();
-    
             if ($payment->getMethod() == Config::CODE
                 && $subject->getState() == Order::STATE_PROCESSING
                 && !$subject->getEmailSent())
