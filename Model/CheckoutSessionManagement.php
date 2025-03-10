@@ -1362,10 +1362,10 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     /**
      * Set order status to payment review
      *
-     * @param mixed $orderId
+     * @param string $orderId
      * @return void
      */
-    public function setOrderPendingPaymentReview(mixed $orderId)
+    public function setOrderPendingPaymentReview($orderId)
     {
         try {
             if (!$orderId) {
