@@ -817,14 +817,16 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     {
 
         // verify the shipping address has not been modified in Magento, it must match
-        // the one selected in the Amazon checkout session
-        $amazonAddress = $this->getShippingAddress($amazonSessionId)[0];
-        $magentoAddress = $this->session->getQuoteFromIdOrSession($quoteId)->getShippingAddress();
-        if (!$this->addressHelper->validateShippingIsSame($amazonAddress, $magentoAddress)) {
-            return $this->handleCompleteCheckoutSessionError(
-                self::ADDRESS_CHANGED_CHECKOUT_ERROR_MESSAGE,
-                $this->getAddressMismatchDetails($amazonAddress, $magentoAddress)
-            );
+        // the one selected in the Amazon checkout session (express checkout only)
+        if ($amznShippingAddress = $this->getShippingAddress($amazonSessionId)) {
+            $amazonAddress = $amznShippingAddress[0];
+            $magentoAddress = $this->session->getQuoteFromIdOrSession($quoteId)->getShippingAddress();
+            if (!$this->addressHelper->validateShippingIsSame($amazonAddress, $magentoAddress)) {
+                return $this->handleCompleteCheckoutSessionError(
+                    self::ADDRESS_CHANGED_CHECKOUT_ERROR_MESSAGE,
+                    $this->getAddressMismatchDetails($amazonAddress, $magentoAddress)
+                );
+            }
         }
 
         if (!$quote = $this->session->getQuoteFromIdOrSession($quoteId)) {
@@ -933,7 +935,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * @param \Magento\Quote\Model\Quote\Address $magentoAddress
      * @return string
      */
-    protected function getAddressMismatchDetails($amazonAddress, $magentoAddress) {
+    protected function getAddressMismatchDetails($amazonAddress, $magentoAddress)
+    {
         return 'Address from Amazon account: ' . json_encode($amazonAddress) . '; Address entered in Magento: ' .
             json_encode([
                 'city' => $magentoAddress->getCity(),
@@ -1405,7 +1408,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * @param mixed $orderId
      * @return void
      */
-    public function setOrderPendingPaymentReview(mixed $orderId)
+    public function setOrderPendingPaymentReview($orderId)
     {
         try {
             if (!$orderId) {
