@@ -97,7 +97,7 @@ class Cancel implements HttpGetActionInterface
                 }
             }
         }
-        
+
         $result = $this->resultFactory->create(ResultFactory::TYPE_REDIRECT);
 
         return $result->setUrl(base64_decode($redirectParam)); // phpcs:ignore Magento2.Functions.DiscouragedFunction
