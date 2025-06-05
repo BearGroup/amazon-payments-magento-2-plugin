@@ -15,7 +15,8 @@
  */
 namespace Amazon\Pay\Plugin;
 
-use \Magento\Sales\Api\OrderPaymentRepositoryInterface;
+use Amazon\Pay\Gateway\Config\Config;
+use Magento\Sales\Api\OrderPaymentRepositoryInterface;
 use Magento\Sales\Model\Order\Payment\Transaction;
 
 class CloseAuthTransaction
@@ -49,9 +50,8 @@ class CloseAuthTransaction
     ) {
         if ($paymentId = $subject->getPaymentId()) {
             if ($payment = $this->orderPaymentRepository->get($paymentId)) {
-                $paymentMethodTitle = $payment->getAdditionalInformation('method_title') ?? '';
-                if (strpos($paymentMethodTitle, 'Amazon Pay') !== false &&
-                    $subject->getTxnType() == Transaction::TYPE_AUTH) {
+                $paymentMethod = $payment->getMethod() ?? '';
+                if ($paymentMethod == Config::CODE && $subject->getTxnType() == Transaction::TYPE_AUTH) {
                     $shouldSave = true;
                     $subject->isFailsafe(true);
                 }
