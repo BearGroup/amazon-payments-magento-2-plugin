@@ -15,6 +15,7 @@
  */
 namespace Amazon\Pay\Plugin;
 
+use Amazon\Pay\Gateway\Config\Config;
 use Magento\Sales\Api\Data\OrderPaymentInterface;
 use Magento\Sales\Model\Order\Payment\Transaction;
 use Magento\Sales\Model\Order\Payment\Transaction\ManagerInterface;
@@ -37,8 +38,8 @@ class PaymentTransactionIdUpdate
         $type,
         $transactionBasedOn = false
     ) {
-        $paymentMethodTitle = $payment->getAdditionalInformation('method_title') ?? '';
-        if (strpos($paymentMethodTitle, 'Amazon Pay') !== false && $type == Transaction::TYPE_VOID) {
+        $paymentMethod = $payment->getMethod() ?? '';
+        if ($paymentMethod == Config::CODE && $type == Transaction::TYPE_VOID) {
             $chargePermissionId = $payment->getAdditionalInformation('charge_permission_id');
             if (empty($chargePermissionId)) {
                 $transactionId = explode('-', $payment->getAuthorizationTransaction()->getTxnId());
