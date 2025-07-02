@@ -959,7 +959,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      *
      * @return bool
      */
-    protected function isExpressCheckoutFlow () {
+    protected function isExpressCheckoutFlow()
+    {
         $stack = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT);
         return empty(array_filter($stack, function ($entry) {
             return strpos($entry['file'], 'CompleteSession.php');
