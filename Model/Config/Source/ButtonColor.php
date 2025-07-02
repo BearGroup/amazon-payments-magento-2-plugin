@@ -27,6 +27,9 @@ class ButtonColor implements \Magento\Framework\Data\OptionSourceInterface
     public function toOptionArray()
     {
         return [[
+            'label' => __('Black'),
+            'value' => 'Black',
+        ], [
             'label' => __('Gold'),
             'value' => 'Gold',
         ], [
