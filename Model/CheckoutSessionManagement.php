@@ -961,8 +961,9 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      */
     protected function isExpressCheckoutFlow () {
         $stack = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT);
-        return empty(array_filter($stack, function ($entry) {
-            return strpos($entry['file'], 'CompleteSession.php');
+        return !empty(array_filter($stack, function ($entry) {
+            return isset($entry['class']) 
+                && $entry['class'] === 'Amazon\\Pay\\Controller\\Checkout\\PlaceOrder\\Interceptor';
         }));
     }
 
