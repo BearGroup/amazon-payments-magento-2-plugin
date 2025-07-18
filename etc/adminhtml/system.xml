@@ -204,7 +204,7 @@
                         <field id="promo_message_color" translate="label" type="select" sortOrder="130" showInDefault="1" showInWebsite="1" showInStore="1">
                             <label>Promo Message Color</label>
                             <config_path>payment/amazon_payment_v2/promo_message_color</config_path>
-                            <source_model>Amazon\Pay\Model\Config\Source\ButtonColor</source_model>
+                            <source_model>Amazon\Pay\Model\Config\Source\PromoFontColor</source_model>
                         </field>
                         <field id="promo_message_font_size" translate="label" type="select" sortOrder="140" showInDefault="1" showInWebsite="1" showInStore="1">
                             <label>Promo Message Font Size</label>
