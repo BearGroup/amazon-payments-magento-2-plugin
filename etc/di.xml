@@ -496,6 +496,9 @@
     <type name="Magento\Sales\Model\Order\Payment\Transaction\Manager">
         <plugin name="amazon_pay_update_transaction_id" type="Amazon\Pay\Plugin\PaymentTransactionIdUpdate" sortOrder="1" />
     </type>
+    <type name="Magento\Sales\Model\Order\Payment\Transaction">
+        <plugin name="amazon_pay_close_auth_prevent_recursion" type="Amazon\Pay\Plugin\CloseAuthTransaction" sortOrder="1" />
+    </type>
     <type name="Magento\Config\Model\Config">
         <plugin name="amazon_pay_config" type="Amazon\Pay\Plugin\ConfigCredentialsValidator" sortOrder="100" disabled="false"/>
     </type>

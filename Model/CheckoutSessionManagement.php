@@ -815,17 +815,18 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      */
     public function placeOrder($amazonSessionId, $quoteId = null)
     {
-
         // verify the shipping address has not been modified in Magento, it must match
         // the one selected in the Amazon checkout session (express checkout only)
-        if ($amznShippingAddress = $this->getShippingAddress($amazonSessionId)) {
-            $amazonAddress = $amznShippingAddress[0];
-            $magentoAddress = $this->session->getQuoteFromIdOrSession($quoteId)->getShippingAddress();
-            if (!$this->addressHelper->validateShippingIsSame($amazonAddress, $magentoAddress)) {
-                return $this->handleCompleteCheckoutSessionError(
-                    self::ADDRESS_CHANGED_CHECKOUT_ERROR_MESSAGE,
-                    $this->getAddressMismatchDetails($amazonAddress, $magentoAddress)
-                );
+        if ($this->isExpressCheckoutFlow()) {
+            if ($amznShippingAddress = $this->getShippingAddress($amazonSessionId)) {
+                $amazonAddress = $amznShippingAddress[0];
+                $magentoAddress = $this->session->getQuoteFromIdOrSession($quoteId)->getShippingAddress();
+                if (!$this->addressHelper->validateShippingIsSame($amazonAddress, $magentoAddress)) {
+                    return $this->handleCompleteCheckoutSessionError(
+                        self::ADDRESS_CHANGED_CHECKOUT_ERROR_MESSAGE,
+                        $this->getAddressMismatchDetails($amazonAddress, $magentoAddress)
+                    );
+                }
             }
         }
 
@@ -915,7 +916,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * @param mixed $amazonSession
      * @return \Magento\Framework\Phrase|mixed
      */
-    protected function getCanceledMessage($amazonSession)
+    public function getCanceledMessage($amazonSession)
     {
         if ($amazonSession['statusDetails']['reasonCode'] == 'BuyerCanceled') {
             return $this->getTranslationString('This transaction was cancelled. Please try again.');
@@ -951,6 +952,20 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 'region_code' => $magentoAddress->getRegionCode(),
                 'email' => $magentoAddress->getEmail()
             ]);
+    }
+
+    /**
+     * Determine whether the checkout session was completed via Express Checkout
+     *
+     * @return bool
+     */
+    protected function isExpressCheckoutFlow()
+    {
+        $stack = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT);
+        return !empty(array_filter($stack, function ($entry) {
+            return isset($entry['class'])
+                && $entry['class'] === 'Amazon\\Pay\\Controller\\Checkout\\PlaceOrder\\Interceptor';
+        }));
     }
 
     /**

@@ -1,5 +1,11 @@
 # Change Log
 
+## 5.18.3
+* Added compatibility with Magento 2.4.8/PHP 8.4
+* Fixed cron job error caused by function visibility
+* Fixed security logic around APB flow
+* Added black as a text color option for promo widget
+
 ## 5.18.2
 * Added security enhancements around Express Checkout
 * Changed when Magento order ID is sent to Amazon to improve traceability
