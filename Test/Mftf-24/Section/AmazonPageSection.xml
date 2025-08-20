@@ -5,6 +5,7 @@
         <element name="passwordField" type="input" selector="#ap_password"/>
         <element name="signInButton" type="button" selector="#signInSubmit"/>
         <element name="checkoutButton" type="button" selector="#default-button-content input[type=submit]"/>
+        <element name="emailContinueButton" type="button" selector="input#continue"/>
         <element name="continueButton" type="button" selector="#maxo_consent input[type=submit]"/>
         <element name="cancelButton" type="button" selector="#return_back_to_merchant_link"/>
         <element name="loginCancelButton" type="button" selector="#consent-wrapper-content [data-action='cancel-consent'] a"/>

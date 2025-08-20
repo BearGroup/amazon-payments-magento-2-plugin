@@ -14,13 +14,11 @@
             <createData entity="SimpleTwo" stepKey="createSimpleProduct"/>
             <createData entity="SampleAmazonPaymentConfig" stepKey="SampleAmazonPaymentConfig"/>
             <magentoCLI command="config:set {{AmazonButtonProductConfig.path}} 1" stepKey="displayAmazonButtonProduct"/>
-            <actionGroup ref="AdminLoginActionGroup" stepKey="loginToAdminPanel"/>
             <magentoCLI command="cache:flush" stepKey="flushCache"/>
         </before>
 
         <after>
             <createData entity="SampleAmazonPaymentConfig" stepKey="SampleAmazonPaymentConfigData"/>
-            <actionGroup ref="AdminLogoutActionGroup" stepKey="logout"/>
             <magentoCLI command="cache:flush" stepKey="flushCache"/>
         </after>
 
@@ -35,31 +33,8 @@
         <executeJS function="return window.name;" stepKey="openerName"/>
 
         <!-- Click Amazon Pay button on product page and login -->
-        <click selector="{{AmazonButtonSection.product}}" stepKey="clickAmazonButton"/>
-        <actionGroup ref="AmazonSwitchToPopupActionGroup" stepKey="allowPopupToOpen2" />
-        <wait time="3" stepKey="allowButtonToActivate"/>
-
-        <!-- Sign in or 'Continue As' Amazon buyer -->
-        <helper class="\Amazon\Pay\Test\Mftf\Helper\SignInOrContinue" method="signInOrContinue" stepKey="signInIfNecessary">
-            <argument name="emailField">{{AmazonPageSection.emailField}}</argument>
-            <argument name="passwordField">{{AmazonPageSection.passwordField}}</argument>
-            <argument name="signInButton">{{AmazonPageSection.signInButton}}</argument>
-            <argument name="openerName">{$openerName}</argument>
-            <argument name="continueButton">{{AmazonPageSection.continueButton}}</argument>
-            <argument name="editShippingButton">{{AmazonCheckoutSection.editShippingButton}}</argument>
-            <argument name="addressId">{{AmazonPageSection.addressId}}</argument>
-        </helper>
-
-        <helper class="\Amazon\Pay\Test\Mftf\Helper\SignInOrContinue" method="handleSecondScreen" stepKey="handlePopupSecondScreen">
-            <argument name="openerName">{$openerName}</argument>
-            <argument name="continueButton">{{AmazonPageSection.continueButton}}</argument>
-            <argument name="editShippingButton">{{AmazonCheckoutSection.editShippingButton}}</argument>
-            <argument name="addressId">{{AmazonPageSection.addressId}}</argument>
-        </helper>
-
-        <!--Come back to checkout with default address-->
-        <actionGroup ref="AmazonCheckoutActionGroup" stepKey="DefaultAmazonCheckoutActionGroup">
-            <argument name="openerName" value="{$openerName}"/>
+        <actionGroup ref="AmazonLoginAndCheckoutActionGroup" stepKey="AmazonLoginAndCheckoutActionGroup">
+            <argument name="buttonSelector" value="{{AmazonButtonSection.product}}"/>
         </actionGroup>
 
         <!-- Click edit button on address -->

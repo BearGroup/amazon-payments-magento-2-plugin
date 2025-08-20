@@ -9,6 +9,8 @@
         <!-- Fill in login form -->
         <waitForElement selector="{{AmazonPageSection.emailField}}" time="30" stepKey="apWaitForLogin"/>
         <fillField selector="{{AmazonPageSection.emailField}}" userInput="{{AmazonAccount.email}}" stepKey="apEnterEmail"/>
+        <click selector="{{AmazonPageSection.emailContinueButton}}" stepKey="apClickContinue"/>
+        <waitForElement selector="{{AmazonPageSection.passwordField}}" time="30" stepKey="apWaitForPassword"/>
         <fillField selector="{{AmazonPageSection.passwordField}}" userInput="{{AmazonAccount.password}}" stepKey="apEnterPassword"/>
         
         <helper class="\Amazon\Pay\Test\Mftf\Helper\HandlePopupSecondScreen" method="handleClickOnly" stepKey="handlePopupSecondScreen">
