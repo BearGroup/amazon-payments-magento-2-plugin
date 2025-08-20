@@ -12,6 +12,7 @@ class SignInOrContinue extends Helper
 {
     public function signInOrContinue(
         $emailField,
+        $emailContinueButton,
         $passwordField,
         $signInButton,
         $openerName,
@@ -25,6 +26,7 @@ class SignInOrContinue extends Helper
         $magentoWebDriver->executeInSelenium(function (RemoteWebDriver $remoteWebDriver) use (
             $magentoWebDriver,
             $emailField,
+            $emailContinueButton,
             $passwordField,
             $signInButton,
             $openerName,
@@ -38,6 +40,10 @@ class SignInOrContinue extends Helper
 
             if (!empty($email)) {
                 $magentoWebDriver->fillField($emailField, new PasswordArgument('pay-demo-eu@amazon.com'));
+                $remoteWebDriver->findElement(
+                    WebDriverBy::cssSelector($emailContinueButton)
+                )->click();
+                $magentoWebDriver->waitForElement($passwordField, 30);
                 $magentoWebDriver->fillField($passwordField, new PasswordArgument('demo123'));
 
                 try {

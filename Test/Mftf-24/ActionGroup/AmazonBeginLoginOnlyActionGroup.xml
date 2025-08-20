@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <actionGroups xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:mftf:Test/etc/actionGroupSchema.xsd">
     <actionGroup name="AmazonBeginLoginOnlyActionGroup">
+    <arguments>
+        <argument name="openerName" type="string"/>
+    </arguments>
 
         <waitForElement selector="{{AmazonPageSection.emailField}}" stepKey="waitForEmailField"/>
         <wait time="1" stepKey="allowButtonToActivate1"/>
         <fillField selector="{{AmazonPageSection.emailField}}" userInput="{{AmazonAccount.email}}" stepKey="fillAmazonPageEmailField"/>
+        <click selector="{{AmazonPageSection.emailContinueButton}}" stepKey="apClickContinue"/>
+        <waitForElement selector="{{AmazonPageSection.passwordField}}" time="30" stepKey="apWaitForPassword"/>
         <fillField selector="{{AmazonPageSection.passwordField}}" userInput="{{AmazonAccount.password}}" stepKey="fillAmazonPagePasswordField"/>
         
         <helper class="\Amazon\Pay\Test\Mftf\Helper\HandlePopupSecondScreen" method="handleClickOnly" stepKey="handleSignInClick">
