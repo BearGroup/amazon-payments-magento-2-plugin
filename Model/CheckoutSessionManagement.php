@@ -963,7 +963,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     {
         $stack = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT);
         return !empty(array_filter($stack, function ($entry) {
-            return isset($entry['class']) 
+            return isset($entry['class'])
                 && $entry['class'] === 'Amazon\\Pay\\Controller\\Checkout\\PlaceOrder\\Interceptor';
         }));
     }
