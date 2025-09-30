@@ -51,6 +51,8 @@
                                                     <item name="children" xsi:type="array">
                                                         <item name="customer-email" xsi:type="array">
                                                             <item name="children" xsi:type="array">
+                                                        <item name="before-login-form" xsi:type="array">
+                                                            <item name="children" xsi:type="array">
                                                                 <item name="amazon-pay-button-region" xsi:type="array">
                                                                     <item name="component" xsi:type="string">uiComponent</item>
                                                                     <item name="displayArea" xsi:type="string">amazon-button-region</item>
@@ -82,11 +84,6 @@
                                                                         </item>
                                                                     </item>
                                                                 </item>
-                                                            </item>
-                                                        </item>
-
-                                                        <item name="before-form" xsi:type="array">
-                                                            <item name="children" xsi:type="array">
                                                                 <item name="amazon-pay-address" xsi:type="array">
                                                                     <item name="component" xsi:type="string">Amazon_Pay/js/view/checkout-address</item>
                                                                     <item name="sortOrder" xsi:type="string">0</item>
@@ -95,6 +92,8 @@
                                                                         <item name="isPayOnly" xsi:type="helper" helper="Amazon\Pay\Helper\Data::isPayOnly"/>
                                                                     </item>
                                                                 </item>
+                                                            </item>
+                                                        </item>
                                                             </item>
                                                         </item>
                                                     </item>
