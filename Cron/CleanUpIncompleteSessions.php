@@ -121,11 +121,13 @@ class CleanUpIncompleteSessions
             $state = $amazonSession['statusDetails']['state'] ?? false;
             switch ($state) {
                 case self::SESSION_STATUS_STATE_CANCELED:
-                    $logMessage = 'Checkout session Canceled, cancelling order and closing transaction: ';
-                    $logMessage .= $checkoutSessionId;
-                    $this->logger->info(self::LOG_PREFIX . $logMessage);
-                    $cancelledMessage = $this->checkoutSessionManagement->getCanceledMessage($amazonSession);
-                    $this->cancelOrder($orderId, $cancelledMessage);
+                    if ($this->checkOrderNeedsToBeCanceled($orderId, $transactionData)) {
+                        $logMessage = 'Checkout session Canceled, cancelling order and closing transaction: ';
+                        $logMessage .= $checkoutSessionId;
+                        $this->logger->info(self::LOG_PREFIX . $logMessage);
+                        $cancelledMessage = $this->checkoutSessionManagement->getCanceledMessage($amazonSession);
+                        $this->cancelOrder($orderId, $cancelledMessage);
+                    }
                     $this->transactionHelper->closeTransaction($transactionData['transaction_id']);
                     break;
                 case self::SESSION_STATUS_STATE_OPEN:
@@ -144,6 +146,43 @@ class CleanUpIncompleteSessions
             $errorMessage = 'Unable to process checkoutSessionId: ' . $checkoutSessionId;
             $this->logger->error(self::LOG_PREFIX . $errorMessage . '. ' . $e->getMessage());
         }
+    }
+
+    /**
+     * @param int|string $orderId
+     * @param array $transactionData
+     * @return bool
+     */
+    private function checkOrderNeedsToBeCanceled(int|string $orderId, array $transactionData)
+    {
+        $order = $this->loadOrder($orderId);
+
+        $isPaid = (float)$order->getBaseTotalDue() <= 0.0001 || $order->hasInvoices();
+        if ($isPaid) {
+            $this->logger->warning(self::LOG_PREFIX .
+                "Skip cancel: order {$order->getIncrementId()} already paid/invoiced. " .
+                "due={$order->getBaseTotalDue()} invoices=" . (int)$order->hasInvoices());
+            return false;
+        }
+
+        $chargeId = (string)($order->getPayment()?->getAdditionalInformation('charge_id') ?? '');
+        if ($chargeId) {
+            try {
+                $charge = $this->amazonPayAdapter->getCharge($transactionData['store_id'], $chargeId);
+                $chargeState = $charge['statusDetails']['state'] ?? '';
+                if (in_array($chargeState, ['Captured', 'CaptureInitiated', 'Authorized'], true)) {
+                    $this->logger->warning(self::LOG_PREFIX .
+                        "Skip cancel: charge $chargeId is $chargeState for order {$order->getIncrementId()}.");
+                    return false;
+                }
+            } catch (\Throwable $ce) {
+                $this->logger->error(self::LOG_PREFIX .
+                    "Charge check failed for $chargeId on order {$order->getIncrementId()}: " . $ce->getMessage());
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
