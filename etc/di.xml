@@ -82,6 +82,7 @@
         <arguments>
             <argument name="commands" xsi:type="array">
                 <item name="AmazonPayAsyncProcess" xsi:type="object">Amazon\Pay\Command\Async\ProcessCommand</item>
+                <item name="AmazonPayOrderProcess" xsi:type="object">Amazon\Pay\Command\Async\ProcessOrderCommand</item>
             </argument>
         </arguments>
     </type>
