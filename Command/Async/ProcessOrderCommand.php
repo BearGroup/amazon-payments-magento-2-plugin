@@ -124,7 +124,7 @@ class ProcessOrderCommand extends Command
                 }
             }
         }
-        $output->writeln("<info>Finish order processing</info>");
+        $output->writeln("<info>Finished order processing</info>");
 
         $code = defined('Command::SUCCESS') ? Command::SUCCESS : 0;
         return $code;
