@@ -259,11 +259,58 @@ class Charge extends AbstractOperation
      */
     public function cancel($order, $detail)
     {
-        if (!$order->isCanceled()) {
+        if (!$order->isCanceled() && $order->canCancel()) {
             $order->addStatusHistoryComment($detail['reasonCode'] . ' - ' . $detail['reasonDescription']);
             $order->cancel();
             $order->save();
             $this->asyncLogger->info('Canceled Order #' . $order->getIncrementId());
+        } else {
+            // Get the reason why the order can't be canceled
+            if (!$order->canVoidPayment()) {
+                $order->addStatusHistoryComment('Can\'t void payment.');
+                $this->asyncLogger->info('Can\'t void payment for Order #' . $order->getIncrementId());
+            }
+            if ($order->canUnhold()) {
+                $order->addStatusHistoryComment('Order is on hold can\'t be canceled.');
+                $this->asyncLogger->info('Order is on hold can\'t be canceled. Order #' . $order->getIncrementId());
+            }
+            if (!$order->canReviewPayment() && $order->canFetchPaymentReviewUpdate()) {
+                $order->addStatusHistoryComment('Payment can\'t be accepted or denied, order can\'t be canceled.');
+                $this->asyncLogger->info('Payment can\'t be accepted or denied, order can\'t be canceled. Order #' . $order->getIncrementId());
+            }
+
+            $allInvoiced = true;
+            foreach ($order->getAllItems() as $item) {
+                if ($item->getQtyToInvoice()) {
+                    $allInvoiced = false;
+                    break;
+                }
+            }
+
+            if ($allInvoiced) {
+                $order->addStatusHistoryComment('Order is fully invoiced, order can\'t be canceled.');
+                $this->asyncLogger->info('Order is fully invoiced, order can\'t be canceled. Order #' . $order->getIncrementId());
+            }
+
+            $state = $order->getState();
+            if ($order->isCanceled()) {
+                $order->addStatusHistoryComment('Order is already canceled.');
+                $this->asyncLogger->info('Order is already canceled. Order #' . $order->getIncrementId());
+            }
+            if ($state === Order::STATE_COMPLETE) {
+                $order->addStatusHistoryComment('Order is completed, can\'t be canceled.');
+                $this->asyncLogger->info('Order is completed, can\'t be canceled. Order #' . $order->getIncrementId());
+            }
+            if ($state === Order::STATE_CLOSED) {
+                $order->addStatusHistoryComment('Order is closed, can\'t be canceled.');
+                $this->asyncLogger->info('Order is closed, can\'t be canceled. Order #' . $order->getIncrementId());
+            }
+
+            if ($order->getActionFlag(Order::ACTION_FLAG_CANCEL) === false) {
+                $order->addStatusHistoryComment('Order can\'t be canceled. Order cancel action is false.');
+                $this->asyncLogger->info('Order can\'t be canceled. Order cancel action is false. Order #' . $order->getIncrementId());
+            }
+            $order->save();
         }
     }
 
