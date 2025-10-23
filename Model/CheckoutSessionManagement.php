@@ -767,9 +767,9 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         }
 
         $this->searchCriteriaBuilder->addFilter(\Magento\Sales\Api\Data\TransactionInterface::ORDER_ID, $order->getEntityId());
-        $txns = $this->transactionRepository->getList($this->searchCriteriaBuilder->create())->getItems();
-        foreach ($txns as $t) {
-            if (in_array($t->getTxnType(), ['authorization', 'capture'], true)) {
+        $transactions = $this->transactionRepository->getList($this->searchCriteriaBuilder->create())->getItems();
+        foreach ($transactions as $transaction) {
+            if (in_array($transaction->getTxnType(), ['authorization', 'capture'], true)) {
                 return true;
             }
         }
