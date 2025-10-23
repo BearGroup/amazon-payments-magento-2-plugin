@@ -743,6 +743,41 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     }
 
     /**
+     * @param OrderInterface $order
+     * @return bool
+     */
+    private function isOrderAlreadyFinalized(\Magento\Sales\Api\Data\OrderInterface $order): bool
+    {
+        $payment = $order->getPayment();
+
+        if ($payment->getAdditionalInformation('charge_permission_id')) {
+            return true;
+        }
+        if ($payment->getLastTransId() && $payment->getLastTransId() !== '') {
+            return true;
+        }
+
+        $state = $order->getState();
+        if (in_array($state, [
+            \Magento\Sales\Model\Order::STATE_PROCESSING,
+            \Magento\Sales\Model\Order::STATE_COMPLETE,
+            \Magento\Sales\Model\Order::STATE_CLOSED
+        ], true)) {
+            return true;
+        }
+
+        $this->searchCriteriaBuilder->addFilter(\Magento\Sales\Api\Data\TransactionInterface::ORDER_ID, $order->getEntityId());
+        $transactions = $this->transactionRepository->getList($this->searchCriteriaBuilder->create())->getItems();
+        foreach ($transactions as $transaction) {
+            if (in_array($transaction->getTxnType(), ['authorization', 'capture'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @inheritDoc
      */
     public function completeCheckoutSession($amazonSessionId, $cartId = null, $orderId = null)
@@ -793,10 +828,12 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         } catch (\Exception $e) {
             if (isset($order)) {
                 $this->closeChargePermission($amazonSessionId, $order, $e);
-                $session = $this->getAmazonSession($amazonSessionId);
-                $cancelledMessage = $this->getCanceledMessage($session);
-                $this->cancelOrder($order, $quote, $cancelledMessage);
-                $this->magentoCheckoutSession->restoreQuote();
+                if (!$this->isOrderAlreadyFinalized($order)) {
+                    $session = $this->getAmazonSession($amazonSessionId);
+                    $cancelledMessage = $this->getCanceledMessage($session);
+                    $this->cancelOrder($order, $quote, $cancelledMessage);
+                    $this->magentoCheckoutSession->restoreQuote();
+                }
             }
 
             throw $e;
@@ -1246,8 +1283,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         );
 
         $completeCheckoutStatus = $amazonCompleteCheckoutResult['status'] ?? '404';
-
-        if (!preg_match('/^2\d\d$/', $completeCheckoutStatus)) {
+        if (!$this->isOrderAlreadyFinalized($order) && !preg_match('/^2\d\d$/', $completeCheckoutStatus)) {
 
             $session = $this->amazonAdapter->getCheckoutSession(
                 $order->getStoreId(),
@@ -1379,7 +1415,9 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             );
 
             $cancelledMessage = $this->getCanceledMessage($session);
-            $this->cancelOrder($order, $quote, $cancelledMessage);
+            if (!$this->isOrderAlreadyFinalized($order)) {
+                $this->cancelOrder($order, $quote, $cancelledMessage);
+            }
             $this->magentoCheckoutSession->restoreQuote();
 
             $logEntryDetails = 'amazonSessionId: ' . $amazonSessionId
