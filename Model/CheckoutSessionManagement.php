@@ -1371,16 +1371,31 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             );
             return ['success'=>true];
         } catch (\Exception $e) {
-            $this->closeChargePermission($amazonSessionId, $order, $e);
-
             $session = $this->amazonAdapter->getCheckoutSession(
                 $order->getStoreId(),
                 $amazonSessionId
             );
 
-            $cancelledMessage = $this->getCanceledMessage($session);
-            $this->cancelOrder($order, $quote, $cancelledMessage);
-            $this->magentoCheckoutSession->restoreQuote();
+            $chargeId = $session['chargeId'] ?? null;
+            $charge = $chargeId ? $this->amazonAdapter->getCharge($order->getStoreId(), $chargeId) : null;
+            $state  = $charge['statusDetails']['state'] ?? null;
+            if ($state === 'Captured') {
+                $payment = $order->getPayment();
+                $payment->setIsTransactionClosed(true);
+                $this->setProcessing($payment, false);
+                $this->orderRepository->save($order);
+                $this->logger->warning('Error during processing captured transaction', ['error' => $e->getMessage(), 'amazonSessionId' => $amazonSessionId]);
+            } elseif ($state === 'Authorized') {
+                $this->setOrderPendingPaymentReview($order->getId());
+                $this->orderRepository->save($order);
+                $this->logger->warning('Error during processing authorized transaction', ['error' => $e->getMessage(), 'amazonSessionId' => $amazonSessionId]);
+            } else {
+                $this->closeChargePermission($amazonSessionId, $order, $e);
+
+                $cancelledMessage = $this->getCanceledMessage($session);
+                $this->cancelOrder($order, $quote, $cancelledMessage);
+                $this->magentoCheckoutSession->restoreQuote();
+            }
 
             $logEntryDetails = 'amazonSessionId: ' . $amazonSessionId
                 . ' quoteId: ' . $quote->getId()
@@ -1408,12 +1423,16 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         );
 
         if (isset($session['chargePermissionId'])) {
-            $this->amazonAdapter->closeChargePermission(
-                $order->getStoreId(),
-                $session['chargePermissionId'],
-                'Canceled due to technical issue: ' . $e->getMessage(),
-                true
-            );
+            $charge = $session['chargeId'] ? $this->amazonAdapter->getCharge($order->getStoreId(), $session['chargeId']) : null;
+            $state = $charge['statusDetails']['state'] ?? null;
+            if ($state !== 'Captured' && $state !== 'Authorized') {
+                $this->amazonAdapter->closeChargePermission(
+                    $order->getStoreId(),
+                    $session['chargePermissionId'],
+                    'Canceled due to technical issue: ' . $e->getMessage(),
+                    true
+                );
+            }
         }
     }
 
