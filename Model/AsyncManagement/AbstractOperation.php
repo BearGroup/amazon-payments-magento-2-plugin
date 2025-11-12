@@ -37,20 +37,28 @@ abstract class AbstractOperation
     private $orderRepository;
 
     /**
+     * @var \Amazon\Pay\Logger\AsyncIpnLogger
+     */
+    private $asyncLogger;
+
+    /**
      * AbstractOperation constructor.
      *
      * @param \Magento\Sales\Api\OrderRepositoryInterface $orderRepository
      * @param \Magento\Sales\Api\TransactionRepositoryInterface $transactionRepository
      * @param \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder
+     * @param \Amazon\Pay\Logger\AsyncIpnLogger $asyncLogger
      */
     public function __construct(
         \Magento\Sales\Api\OrderRepositoryInterface $orderRepository,
         \Magento\Sales\Api\TransactionRepositoryInterface $transactionRepository,
-        \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder
+        \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder,
+        \Amazon\Pay\Logger\AsyncIpnLogger $asyncLogger
     ) {
         $this->orderRepository = $orderRepository;
         $this->transactionRepository = $transactionRepository;
         $this->searchCriteriaBuilder = $searchCriteriaBuilder;
+        $this->asyncLogger = $asyncLogger;
     }
 
     /**
@@ -146,8 +154,26 @@ abstract class AbstractOperation
      */
     protected function closeLastTransaction($order)
     {
-        $transactionId = $order->getPayment()->getLastTransId();
+        $payment = $order->getPayment();
+        $transactionId = $payment->getLastTransId();
+        if (!$transactionId) {
+            $this->asyncLogger->warning(sprintf(
+                'CloseLastTransaction: transaction id not found for order_id=%s, payment_id=%s',
+                $order->getId(),
+                $payment->getId()
+            ));
+            return;
+        }
         $transaction = $this->getTransaction($transactionId);
+        if (!$transaction) {
+            $this->asyncLogger->warning(sprintf(
+                'CloseLastTransaction: transaction not found for last_trans_id=%s, order_id=%s, payment_id=%s',
+                $transactionId,
+                $order->getId(),
+                $payment->getId()
+            ));
+            return;
+        }
         $transaction->setIsClosed(true)->save();
     }
 }

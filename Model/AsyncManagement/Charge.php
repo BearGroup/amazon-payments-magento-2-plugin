@@ -101,7 +101,7 @@ class Charge extends AbstractOperation
         \Amazon\Pay\Model\AmazonConfig $amazonConfig,
         \Magento\Framework\Event\ManagerInterface $eventManager
     ) {
-        parent::__construct($orderRepository, $transactionRepository, $searchCriteriaBuilder);
+        parent::__construct($orderRepository, $transactionRepository, $searchCriteriaBuilder, $asyncLogger);
         $this->amazonAdapter = $amazonAdapter;
         $this->asyncLogger = $asyncLogger;
         $this->invoiceRepository = $invoiceRepository;

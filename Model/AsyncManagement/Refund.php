@@ -74,7 +74,7 @@ class Refund extends AbstractOperation
         \Magento\Framework\Notification\NotifierInterface $notifier,
         \Magento\Backend\Model\UrlInterface $urlBuilder
     ) {
-        parent::__construct($orderRepository, $transactionRepository, $searchCriteriaBuilder);
+        parent::__construct($orderRepository, $transactionRepository, $searchCriteriaBuilder, $asyncLogger);
         $this->amazonAdapter = $amazonAdapter;
         $this->asyncLogger = $asyncLogger;
         $this->invoiceService = $invoiceService;

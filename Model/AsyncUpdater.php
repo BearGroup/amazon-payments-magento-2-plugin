@@ -105,6 +105,10 @@ class AsyncUpdater
             $this->logger->error($e);
             $this->asyncLogger->error($e);
             $async->getResource()->rollBack();
+        } catch (\Throwable $e) {
+            $this->logger->error('An error occurred during the async transaction process: ' . $e->getMessage());
+            $this->asyncLogger->error($e);
+            $async->getResource()->rollBack();
         }
     }
 
