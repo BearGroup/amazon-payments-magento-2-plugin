@@ -9,6 +9,10 @@
  * Override the Luma theme checkout too add in the 'paypal-fastlane-email-watermark' region.
  */
 -->
+<!-- ko foreach: getRegion('amazon-button-region') -->
+<!-- ko template: getTemplate() --><!-- /ko -->
+<!-- /ko -->
+
 <!-- ko ifnot: isCustomerLoggedIn() -->
 <!-- ko foreach: getRegion('before-login-form') -->
 <!-- ko template: getTemplate() --><!-- /ko -->
