@@ -4,6 +4,21 @@ define(['jquery', 'domReady!'], function ($) {
     const INIT_FLAG = '__amazonPayInit';
     const HOST_SEL  = '.amazon-checkout-button > div';
 
+    function ensureShadowStyle(root) {
+        if (root.__amazonPayStyleAdded) return;
+
+        const style = document.createElement('style');
+        style.textContent = `
+            .amazonpay-button-microtext {
+                margin-top: -3px;
+            }
+        `;
+
+        // put it at the top of the shadow-root
+        root.insertBefore(style, root.firstChild);
+        root.__amazonPayStyleAdded = true;
+    }
+
     // Recursively traverse nested shadow DOMs and find matches
     function deepQueryAll(root, selector) {
         const results = [];
@@ -29,15 +44,32 @@ define(['jquery', 'domReady!'], function ($) {
         document.querySelectorAll(HOST_SEL).forEach(function (host) {
             const root = host.shadowRoot;
             if (!root) return;
+            ensureShadowStyle(root);
 
-            // Find all elements with aria-label (in any nested shadow)
-            const labeledElements = deepQueryAll(host, '[aria-label]');
-            labeledElements.forEach(function (el) {
-                const ariaLabel = el.getAttribute('aria-label');
-                if (!ariaLabel) return;
+            const logoImgs = deepQueryAll(root, '.amazonpay-button-logo img');
+            logoImgs.forEach(function (img) {
+                img.removeAttribute('alt');
+                img.setAttribute('aria-label', 'Amazon Pay - Use your Amazon account');
+            });
 
-                if (!el.hasAttribute('alt')) {
-                    el.setAttribute('alt', ariaLabel);
+            const microtextBlocks = deepQueryAll(root, '.amazonpay-button-microtext');
+            microtextBlocks.forEach(function (block) {
+                const img = block.querySelector('img');
+
+                const label =
+                    (img && (img.getAttribute('aria-label') || img.getAttribute('alt'))) ||
+                    block.getAttribute('aria-label');
+
+                if (!label) {
+                    return;
+                }
+
+                const p = document.createElement('p');
+                p.textContent = label;
+                p.className   = 'amazonpay-button-microtext';
+
+                if (block.parentNode) {
+                    block.parentNode.replaceChild(p, block);
                 }
             });
         });
