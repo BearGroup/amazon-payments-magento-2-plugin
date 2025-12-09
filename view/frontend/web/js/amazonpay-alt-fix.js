@@ -1,4 +1,4 @@
-define(['jquery', 'domReady!'], function ($) {
+define(['jquery', 'mage/translate', 'domReady!'], function ($, $t) {
     'use strict';
 
     const INIT_FLAG = '__amazonPayInit';
@@ -49,7 +49,7 @@ define(['jquery', 'domReady!'], function ($) {
             const logoImgs = deepQueryAll(root, '.amazonpay-button-logo img');
             logoImgs.forEach(function (img) {
                 img.removeAttribute('alt');
-                img.setAttribute('aria-label', 'Amazon Pay - Use your Amazon account');
+                img.setAttribute('aria-label', $t('Amazon Pay - Use your Amazon account'));
             });
 
             const microtextBlocks = deepQueryAll(root, '.amazonpay-button-microtext');
@@ -65,7 +65,7 @@ define(['jquery', 'domReady!'], function ($) {
                 }
 
                 const p = document.createElement('p');
-                p.textContent = label;
+                p.textContent = $t(label);
                 p.className   = 'amazonpay-button-microtext';
 
                 if (block.parentNode) {
