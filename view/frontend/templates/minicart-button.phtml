@@ -53,3 +53,22 @@ use Magento\Framework\Escaper;
         </div>
     </div>
 </div>
+<?php if ($block->isDisabled()): ?>
+    <?=
+        $secureRenderer->renderTag(
+            'style',
+            [],
+            '
+                .amazon-button-container {
+                    opacity: 0.5;
+                }
+                .amazon-button-container,
+                .amazon-button-container * {
+                    cursor: not-allowed;
+                    pointer-events: none;
+                }
+            ',
+            false
+        );
+    ?>
+<?php endif; ?>

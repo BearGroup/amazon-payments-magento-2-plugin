@@ -17,6 +17,7 @@ namespace Amazon\Pay\Block\Minicart;
 
 use Magento\Framework\View\Element\Template;
 use Magento\Catalog\Block\ShortcutInterface;
+use Magento\Checkout\Model\Session;
 
 class Button extends Template implements ShortcutInterface
 {
@@ -55,12 +56,18 @@ class Button extends Template implements ShortcutInterface
     private $amazonHelper;
 
     /**
+     * @var Session
+     */
+    private $checkoutSession;
+
+    /**
      * Button constructor.
      * @param Template\Context $context
      * @param \Magento\Framework\Locale\ResolverInterface $localeResolver
      * @param \Magento\Framework\App\Request\Http $request
      * @param \Magento\Store\Model\StoreManagerInterface $storeManager
      * @param \Amazon\Pay\Model\AmazonConfig $amazonConfig
+     * @param Session $checkoutSession
      * @param array $data
      */
     public function __construct(
@@ -69,6 +76,7 @@ class Button extends Template implements ShortcutInterface
         \Magento\Framework\App\Request\Http $request,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Amazon\Pay\Model\AmazonConfig $amazonConfig,
+        Session $checkoutSession,
         array $data = []
     ) {
         parent::__construct($context, $data);
@@ -76,6 +84,7 @@ class Button extends Template implements ShortcutInterface
         $this->request = $request;
         $this->storeManager = $storeManager;
         $this->amazonConfig = $amazonConfig;
+        $this->checkoutSession = $checkoutSession;
     }
 
     /**
@@ -92,6 +101,14 @@ class Button extends Template implements ShortcutInterface
         return $this->amazonConfig->isEnabled()
             && $this->amazonConfig->isPayButtonAvailableInMinicart()
             && $this->isMiniCart;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isDisabled()
+    {
+        return !$this->checkoutSession->getQuote()->validateMinimumAmount();
     }
 
     /**
