@@ -40,7 +40,24 @@ class AmazonAddressDecoratorJp implements AmazonAddressInterface
      */
     public function getLines()
     {
-        return $this->amazonAddress->getLines();
+        $lines = $this->amazonAddress->getLines();
+        $rawCity = $this->amazonAddress->getCity();
+
+        $city = $rawCity;
+
+        if (empty($city)) {
+            $targetLine = $lines[1] ?? '';
+            if (preg_match('/^.*?[市区町村]/u', $targetLine, $matches)) {
+                $city = $matches[0];
+            }
+        }
+
+        if (!empty($city) && isset($lines[1]) && strpos($lines[1], $city) === 0) {
+            $lines[1] = ltrim(str_replace($city, '', $lines[1]));
+            $lines = array_filter($lines);
+        }
+
+        return $lines;
     }
 
     /**
@@ -54,17 +71,19 @@ class AmazonAddressDecoratorJp implements AmazonAddressInterface
     /**
      * @inheritDoc
      */
-    public function getFirstName()
-    {
-        return $this->amazonAddress->getFirstName();
+    public function getFirstName() {
+        $name = $this->amazonAddress->getFirstName();
+        $parts = explode(' ', trim($name), 2);
+        return $parts[0] ?: '-';
     }
 
     /**
      * @inheritDoc
      */
-    public function getLastName()
-    {
-        return $this->amazonAddress->getLastName();
+    public function getLastName() {
+        $name = $this->amazonAddress->getFirstName();
+        $parts = explode(' ', trim($name), 2);
+        return $parts[1] ?? ($this->amazonAddress->getLastName() ?: '-');
     }
 
     /**
@@ -72,7 +91,20 @@ class AmazonAddressDecoratorJp implements AmazonAddressInterface
      */
     public function getCity()
     {
-        return $this->amazonAddress->getCity() ?? '-';
+        $city = $this->amazonAddress->getCity();
+
+        if (empty($city)) {
+            $lines = $this->amazonAddress->getLines();
+            $targetLine = $lines[1] ?? '';
+
+            if (preg_match('/^.*?[市区町村]/u', $targetLine, $matches)) {
+                return $matches[0];
+            }
+
+            return $targetLine ?: '-';
+        }
+
+        return $city;
     }
 
     /**
@@ -80,7 +112,18 @@ class AmazonAddressDecoratorJp implements AmazonAddressInterface
      */
     public function getState()
     {
-        return $this->amazonAddress->getState();
+        $state = $this->amazonAddress->getState();
+
+        if (empty($state)) {
+            $lines = $this->amazonAddress->getLines();
+            $targetLine = $lines[1] ?? '';
+
+            if (preg_match('/^.*?[都道府県]/u', $targetLine, $matches)) {
+                return $matches[0];
+            }
+        }
+
+        return $state;
     }
 
     /**
@@ -113,10 +156,7 @@ class AmazonAddressDecoratorJp implements AmazonAddressInterface
     public function getLine($lineNumber)
     {
         $lines = $this->getLines();
-        if (isset($lines[$lineNumber - 1])) {
-            return $lines[$lineNumber - 1];
-        }
-        return null;
+        return $lines[$lineNumber] ?? null;
     }
 
     /**
