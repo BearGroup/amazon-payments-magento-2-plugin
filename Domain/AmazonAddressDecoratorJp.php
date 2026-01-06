@@ -19,6 +19,8 @@ namespace Amazon\Pay\Domain;
 
 class AmazonAddressDecoratorJp implements AmazonAddressInterface
 {
+    private const CITY_FROM_LINE_REGEX = '/^.*?[市区町村]/u';
+
     /**
      * @var AmazonAddressInterface
      */
@@ -41,16 +43,7 @@ class AmazonAddressDecoratorJp implements AmazonAddressInterface
     public function getLines()
     {
         $lines = $this->amazonAddress->getLines();
-        $rawCity = $this->amazonAddress->getCity();
-
-        $city = $rawCity;
-
-        if (empty($city)) {
-            $targetLine = $lines[1] ?? '';
-            if (preg_match('/^.*?[市区町村]/u', $targetLine, $matches)) {
-                $city = $matches[0];
-            }
-        }
+        $city = $this->resolveCity();
 
         if (!empty($city) && isset($lines[1]) && strpos($lines[1], $city) === 0) {
             $lines[1] = ltrim(str_replace($city, '', $lines[1]));
@@ -91,20 +84,9 @@ class AmazonAddressDecoratorJp implements AmazonAddressInterface
      */
     public function getCity()
     {
-        $city = $this->amazonAddress->getCity();
+        $city = $this->resolveCity('-');
 
-        if (empty($city)) {
-            $lines = $this->amazonAddress->getLines();
-            $targetLine = $lines[1] ?? '';
-
-            if (preg_match('/^.*?[市区町村]/u', $targetLine, $matches)) {
-                return $matches[0];
-            }
-
-            return $targetLine ?: '-';
-        }
-
-        return $city;
+        return $city !== '' ? $city : '-';
     }
 
     /**
@@ -173,5 +155,26 @@ class AmazonAddressDecoratorJp implements AmazonAddressInterface
     public function setCompany($company)
     {
         return $this->amazonAddress->setCompany($company);
+    }
+
+    /**
+     * @param string|null $fallback
+     * @return string
+     */
+    private function resolveCity(?string $fallback = null): string
+    {
+        $city = (string) $this->amazonAddress->getCity();
+        if ($city !== '') {
+            return $city;
+        }
+
+        $lines = (array) $this->amazonAddress->getLines();
+        $targetLine = (string) ($lines[1] ?? '');
+
+        if ($targetLine !== '' && preg_match(self::CITY_FROM_LINE_REGEX, $targetLine, $matches)) {
+            return $matches[0];
+        }
+
+        return $targetLine !== '' ? $targetLine : ($fallback ?? '');
     }
 }
