@@ -18,6 +18,7 @@ namespace Amazon\Pay\Cron;
 
 use Amazon\Pay\Helper\Transaction as TransactionHelper;
 use Amazon\Pay\Logger\Logger;
+use Magento\Sales\Model\Order;
 use Amazon\Pay\Model\Adapter\AmazonPayAdapter;
 use Amazon\Pay\Model\CheckoutSessionManagement;
 use Magento\Sales\Api\Data\OrderInterface;
@@ -112,6 +113,7 @@ class CleanUpIncompleteSessions
     {
         $checkoutSessionId = $transactionData['checkout_session_id'];
         $orderId = $transactionData['order_id'];
+        $order = $this->loadOrder($orderId);
 
         $this->logger->debug(self::LOG_PREFIX . 'Cleaning up checkout session id: ' . $checkoutSessionId);
 
@@ -121,6 +123,14 @@ class CleanUpIncompleteSessions
                 $transactionData['store_id'],
                 $checkoutSessionId
             );
+
+            if (!$order) {
+                $this->logger->error(
+                    self::LOG_PREFIX . 'Order not found for ID: ' . $orderId . ', skipping session: ' . $checkoutSessionId
+                );
+                return;
+            }
+
             $state = $amazonSession['statusDetails']['state'] ?? false;
             switch ($state) {
                 case self::SESSION_STATUS_STATE_CANCELED:
@@ -132,6 +142,25 @@ class CleanUpIncompleteSessions
                     $this->transactionHelper->closeTransaction($transactionData['transaction_id']);
                     break;
                 case self::SESSION_STATUS_STATE_OPEN:
+                    // do not complete sessions for orders that are already canceled/closed/complete.
+                    if ($order->isCanceled()
+                        || $order->getState() === Order::STATE_CANCELED
+                        || $order->getState() === Order::STATE_COMPLETE
+                        || $order->getState() === Order::STATE_CLOSED
+                    ) {
+                       $this->logger->info(self::LOG_PREFIX . 'Order state is ' . $order->getState()
+                           . ' (canceled/closed/complete). Skipping completion for session: ' . $checkoutSessionId);
+                       return;
+                    }
+
+                    // only complete if Amazon session has payment details ready
+                    $hasChargeAmount = isset($amazonSession['paymentDetails']['chargeAmount']['amount']);
+                    if (!$hasChargeAmount) {
+                        $this->logger->info(
+                            self::LOG_PREFIX . 'Amazon session has no chargeAmount yet; skipping completion: ' . $checkoutSessionId
+                        );
+                        return;
+                    }
                     $logMessage = 'Checkout session Open, completing: ';
                     $logMessage .= $checkoutSessionId;
                     $this->logger->debug(self::LOG_PREFIX . $logMessage);
