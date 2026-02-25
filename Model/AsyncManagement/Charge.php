@@ -209,6 +209,14 @@ class Charge extends AbstractOperation
      */
     public function decline($order, $chargeId, $detail)
     {
+        if ($this->isOrderPaidOrCaptured($order, $chargeId)) {
+            $this->asyncLogger->warning(
+                'Skip decline cancellation for already paid/captured Order #' . $order->getIncrementId()
+                    . ' chargeId: ' . $chargeId
+            );
+            return;
+        }
+
         $invoice = $this->loadInvoice($chargeId, $order);
         if ($invoice) {
             $invoice->cancel();
@@ -259,6 +267,13 @@ class Charge extends AbstractOperation
      */
     public function cancel($order, $detail)
     {
+        if ($this->isOrderPaidOrCaptured($order)) {
+            $this->asyncLogger->warning(
+                'Skip async cancel for already paid/captured Order #' . $order->getIncrementId()
+            );
+            return;
+        }
+
         if (!$order->isCanceled()) {
             $order->addStatusHistoryComment($detail['reasonCode'] . ' - ' . $detail['reasonDescription']);
             $order->cancel();
@@ -367,5 +382,56 @@ class Charge extends AbstractOperation
             $order->addStatusHistoryComment($errorMessage);
             $order->save();
         }
+    }
+
+    /**
+     * Prevent cancellation if payment is already completed.
+     *
+     * @param OrderInterface $order
+     * @param string|null $chargeId
+     * @return bool
+     */
+    private function isOrderPaidOrCaptured(OrderInterface $order, $chargeId = null)
+    {
+        if ((float)$order->getTotalPaid() > 0 || (float)$order->getTotalDue() <= 0.0001) {
+            return true;
+        }
+
+        $chargeId = $chargeId ?: $this->extractChargeIdFromOrder($order);
+        if (!$chargeId) {
+            return false;
+        }
+
+        try {
+            $charge = $this->amazonAdapter->getCharge($order->getStoreId(), $chargeId);
+            return ($charge['statusDetails']['state'] ?? '') === 'Captured';
+        } catch (\Exception $e) {
+            $this->asyncLogger->error('Unable to verify charge state before cancel. chargeId: ' . $chargeId
+                . ' Error: ' . $e->getMessage());
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve charge ID from payment transaction data where possible.
+     *
+     * @param OrderInterface $order
+     * @return string|null
+     */
+    private function extractChargeIdFromOrder(OrderInterface $order)
+    {
+        $transactionId = (string)$order->getPayment()->getLastTransId();
+        if ($transactionId === '') {
+            return null;
+        }
+
+        foreach (['-capture', '-void'] as $suffix) {
+            if (substr($transactionId, -strlen($suffix)) === $suffix) {
+                return substr($transactionId, 0, -strlen($suffix));
+            }
+        }
+
+        return $transactionId;
     }
 }
