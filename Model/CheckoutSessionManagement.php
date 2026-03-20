@@ -771,6 +771,20 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
         try {
             $order = $this->orderRepository->get($orderId);
+
+            // Do not proceed with payment capture if the order is already cancelled.
+            // This prevents charging the customer when the Magento order will not be fulfilled.
+            if ($order->getState() === \Magento\Sales\Model\Order::STATE_CANCELED) {
+                $this->logger->error(
+                    'completeCheckoutSession: order ' . $order->getIncrementId() . ' is already cancelled'
+                    . ' (amazonSessionId: ' . $amazonSessionId . '). Aborting to prevent capture on cancelled order.'
+                );
+                return $this->handleCompleteCheckoutSessionError(
+                    self::GENERIC_COMPLETE_CHECKOUT_ERROR_MESSAGE,
+                    'Order ' . $order->getIncrementId() . ' is already cancelled, will not complete checkout session ' . $amazonSessionId
+                );
+            }
+
             $quote = $this->getQuote($order);
 
             // @TODO: associate token with payment?
@@ -1253,6 +1267,21 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 $order->getStoreId(),
                 $amazonSessionId
             );
+
+            // Do NOT cancel the order If the session is still Open
+            if (($session['statusDetails']['state'] ?? null) === 'Open') {
+                $this->logger->info(
+                    'completeAmazonCheckoutSession returned HTTP ' . $completeCheckoutStatus
+                    . ' but session ' . $amazonSessionId . ' is still Open'
+                    . ' (possible MFA in progress). Order ' . $order->getIncrementId() . ' will not be cancelled.'
+                );
+                $this->setPending($order->getPayment());
+                return $this->handleCompleteCheckoutSessionError(
+                    self::GENERIC_COMPLETE_CHECKOUT_ERROR_MESSAGE,
+                    'completeCheckoutSession returned ' . $completeCheckoutStatus
+                    . ' but session is still Open: ' . ($amazonCompleteCheckoutResult['message'] ?? '')
+                );
+            }
 
             $cancelledMessage = $this->getCanceledMessage($session);
 
