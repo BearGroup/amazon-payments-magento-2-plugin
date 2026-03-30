@@ -58,7 +58,9 @@ var config = {
             amazonPayLoginButton: 'Amazon_Pay/js/amazon-login-button',
             amazonPayLogout: 'Amazon_Pay/js/amazon-logout',
             amazonPayLogoutButton: 'Amazon_Pay/js/amazon-logout-button',
-            amazonPayPromoMessaging: 'Amazon_Pay/js/view/promo/promo-display'
+            amazonPayPromoMessaging: 'Amazon_Pay/js/view/promo/promo-display',
+            'Magento_PaymentServicesPaypal/template/form/element/email.html':
+                'Amazon_Pay/template/payment-services-paypal/form/element/email.html'
         }
     },
     paths: {
