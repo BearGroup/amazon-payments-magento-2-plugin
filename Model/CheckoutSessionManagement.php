@@ -1298,6 +1298,15 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $amazonCompleteCheckoutResult = $amazonCheckoutResult['amazonCompleteCheckoutResult'];
             $payment = $order->getPayment();
             $chargeId = $amazonCompleteCheckoutResult['chargeId'];
+
+            // Persist charge_permission_id immediately so concurrent duplicate
+            // completeCheckoutSession calls short-circuit via the idempotency guard.
+            $payment->setAdditionalInformation(
+                'charge_permission_id',
+                $amazonCompleteCheckoutResult['chargePermissionId']
+            );
+            $this->paymentRepository->save($payment);
+
             $transaction = $this->getTransaction($amazonCompleteCheckoutResult['checkoutSessionId']);
             $completeCheckoutStatus = $amazonCompleteCheckoutResult['status'] ?? '404';
 
@@ -1352,12 +1361,6 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                     }
                     break;
             }
-
-            // relies on updateTransactionId to save the $payment
-            $payment->setAdditionalInformation(
-                'charge_permission_id',
-                $amazonCompleteCheckoutResult['chargePermissionId']
-            );
 
             $this->updateTransactionId($chargeId, $payment, $transaction);
             $this->updateVaultToken(
