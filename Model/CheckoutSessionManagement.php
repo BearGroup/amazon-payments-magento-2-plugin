@@ -773,6 +773,18 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $order = $this->orderRepository->get($orderId);
             $quote = $this->getQuote($order);
 
+            // Idempotency guard - prevent processing an order if it has already been processed;
+            // charge_permission_id is persisted only after a successful handlePayment;
+            // its presence means this completeSession call is a duplicate.
+            if ($order->getPayment()
+                && $order->getPayment()->getAdditionalInformation('charge_permission_id')) {
+                return [
+                    'success' => true,
+                    'order_id' => $order->getId(),
+                    'increment_id' => $order->getIncrementId(),
+                ];
+            }
+
             // @TODO: associate token with payment?
             $result['order_id'] = $orderId;
             $result['increment_id'] = $order->getIncrementId();
@@ -1315,6 +1327,15 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $amazonCompleteCheckoutResult = $amazonCheckoutResult['amazonCompleteCheckoutResult'];
             $payment = $order->getPayment();
             $chargeId = $amazonCompleteCheckoutResult['chargeId'];
+
+            // Persist charge_permission_id immediately so concurrent duplicate
+            // completeCheckoutSession calls short-circuit via the idempotency guard.
+            $payment->setAdditionalInformation(
+                'charge_permission_id',
+                $amazonCompleteCheckoutResult['chargePermissionId']
+            );
+            $this->paymentRepository->save($payment);
+
             $transaction = $this->getTransaction($amazonCompleteCheckoutResult['checkoutSessionId']);
             $completeCheckoutStatus = $amazonCompleteCheckoutResult['status'] ?? '404';
 
@@ -1369,12 +1390,6 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                     }
                     break;
             }
-
-            // relies on updateTransactionId to save the $payment
-            $payment->setAdditionalInformation(
-                'charge_permission_id',
-                $amazonCompleteCheckoutResult['chargePermissionId']
-            );
 
             $this->updateTransactionId($chargeId, $payment, $transaction);
             $this->updateVaultToken(
