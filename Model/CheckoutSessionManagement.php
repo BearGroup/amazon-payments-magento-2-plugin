@@ -46,6 +46,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 {
     protected const GENERIC_COMPLETE_CHECKOUT_ERROR_MESSAGE = 'Unable to complete Amazon Pay checkout.';
     protected const ADDRESS_CHANGED_CHECKOUT_ERROR_MESSAGE = 'Shipping address mismatch.';
+    protected const SESSION_STATUS_STATE_COMPLETED = 'Completed';
 
     /**
      * @var \Magento\Store\Model\StoreManagerInterface
@@ -1279,6 +1280,33 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 $order->getStoreId(),
                 $amazonSessionId
             );
+
+            // A non-2xx from completeCheckoutSession does NOT always mean the payment failed.
+            // Amazon returns 4xx (e.g. 422 InvalidCheckoutSessionStatus) when the session has
+            // already been Completed by an earlier or concurrent completeCheckoutSession call -
+            // a duplicate from a browser retry/refresh, a link prefetcher or proxy scanner, or
+            // the amazon_pay_cleanup_sessions cron re-completing a session it still saw as Open.
+            // In that case the buyer has already been charged; cancelling here would cancel an
+            // already-paid order. Treat it as success and let handlePayment() continue with the
+            // session payload (it carries chargeId and chargePermissionId). The charge_permission_id
+            // idempotency guard in completeCheckoutSession() then short-circuits any later retry.
+            if (($session['statusDetails']['state'] ?? null) === self::SESSION_STATUS_STATE_COMPLETED) {
+                $this->logger->info(
+                    'completeCheckoutSession returned ' . $completeCheckoutStatus
+                    . ' but Amazon session ' . $amazonSessionId . ' is already Completed; '
+                    . 'treating as success instead of cancelling order ' . $order->getIncrementId()
+                );
+                return [
+                    'success' => true,
+                    'amazonCompleteCheckoutResult' => [
+                        'status' => 200,
+                        'checkoutSessionId' => $session['checkoutSessionId'] ?? $amazonSessionId,
+                        'chargeId' => $session['chargeId'] ?? null,
+                        'chargePermissionId' => $session['chargePermissionId'] ?? null,
+                        'statusDetails' => $session['statusDetails'] ?? [],
+                    ],
+                ];
+            }
 
             $cancelledMessage = $this->getCanceledMessage($session);
 
