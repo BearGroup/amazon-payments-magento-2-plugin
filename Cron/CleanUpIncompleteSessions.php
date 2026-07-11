@@ -161,6 +161,12 @@ class CleanUpIncompleteSessions
         $order = $this->loadOrder($orderId);
 
         if ($order) {
+            if ($this->isOrderPaidOrCaptured($order)) {
+                $this->logger->info(
+                    self::LOG_PREFIX . 'Skip cancellation for already paid/captured order: ' . $orderId
+                );
+                return;
+            }
             $this->checkoutSessionManagement->cancelOrder($order, null, $reasonMessage);
         } else {
             $this->logger->error(self::LOG_PREFIX . 'Order not found for ID: ' . $orderId);
@@ -181,5 +187,55 @@ class CleanUpIncompleteSessions
             $this->logger->error(self::LOG_PREFIX . 'Error loading order: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Prevent cancellation if payment is already completed.
+     *
+     * @param OrderInterface $order
+     * @return bool
+     */
+    private function isOrderPaidOrCaptured(OrderInterface $order)
+    {
+        if ((float)$order->getTotalPaid() > 0 || (float)$order->getTotalDue() <= 0.0001) {
+            return true;
+        }
+
+        $chargeId = $this->extractChargeIdFromOrder($order);
+        if (!$chargeId) {
+            return false;
+        }
+
+        try {
+            $charge = $this->amazonPayAdapter->getCharge($order->getStoreId(), $chargeId);
+            return ($charge['statusDetails']['state'] ?? '') === 'Captured';
+        } catch (\Exception $e) {
+            $this->logger->error(self::LOG_PREFIX . 'Unable to verify charge state before cancel. chargeId: '
+                . $chargeId . ' Error: ' . $e->getMessage());
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve charge ID from payment transaction data where possible.
+     *
+     * @param OrderInterface $order
+     * @return string|null
+     */
+    private function extractChargeIdFromOrder(OrderInterface $order)
+    {
+        $transactionId = (string)$order->getPayment()->getLastTransId();
+        if ($transactionId === '') {
+            return null;
+        }
+
+        foreach (['-capture', '-void'] as $suffix) {
+            if (substr($transactionId, -strlen($suffix)) === $suffix) {
+                return substr($transactionId, 0, -strlen($suffix));
+            }
+        }
+
+        return $transactionId;
     }
 }
