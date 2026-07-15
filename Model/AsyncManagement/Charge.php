@@ -72,6 +72,11 @@ class Charge extends AbstractOperation
     private $eventManager;
 
     /**
+     * @var \Amazon\Pay\Model\Payment\PaidOrderGuard
+     */
+    private $paidOrderGuard;
+
+    /**
      * Charge constructor.
      *
      * @param \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder
@@ -86,6 +91,7 @@ class Charge extends AbstractOperation
      * @param \Magento\Backend\Model\UrlInterface $urlBuilder
      * @param \Amazon\Pay\Model\AmazonConfig $amazonConfig
      * @param \Magento\Framework\Event\ManagerInterface $eventManager
+     * @param \Amazon\Pay\Model\Payment\PaidOrderGuard $paidOrderGuard
      */
     public function __construct(
         \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder,
@@ -99,7 +105,8 @@ class Charge extends AbstractOperation
         \Magento\Framework\Notification\NotifierInterface $notifier,
         \Magento\Backend\Model\UrlInterface $urlBuilder,
         \Amazon\Pay\Model\AmazonConfig $amazonConfig,
-        \Magento\Framework\Event\ManagerInterface $eventManager
+        \Magento\Framework\Event\ManagerInterface $eventManager,
+        \Amazon\Pay\Model\Payment\PaidOrderGuard $paidOrderGuard
     ) {
         parent::__construct($orderRepository, $transactionRepository, $searchCriteriaBuilder, $asyncLogger);
         $this->amazonAdapter = $amazonAdapter;
@@ -111,6 +118,7 @@ class Charge extends AbstractOperation
         $this->urlBuilder = $urlBuilder;
         $this->amazonConfig = $amazonConfig;
         $this->eventManager = $eventManager;
+        $this->paidOrderGuard = $paidOrderGuard;
     }
 
     /**
@@ -209,7 +217,7 @@ class Charge extends AbstractOperation
      */
     public function decline($order, $chargeId, $detail)
     {
-        if ($this->isOrderPaidOrCaptured($order, $chargeId)) {
+        if ($this->paidOrderGuard->isOrderPaidOrCaptured($order, $chargeId)) {
             $this->asyncLogger->warning(
                 'Skip decline cancellation for already paid/captured Order #' . $order->getIncrementId()
                     . ' chargeId: ' . $chargeId
@@ -267,7 +275,7 @@ class Charge extends AbstractOperation
      */
     public function cancel($order, $detail)
     {
-        if ($this->isOrderPaidOrCaptured($order)) {
+        if ($this->paidOrderGuard->isOrderPaidOrCaptured($order)) {
             $this->asyncLogger->warning(
                 'Skip async cancel for already paid/captured Order #' . $order->getIncrementId()
             );
@@ -384,54 +392,4 @@ class Charge extends AbstractOperation
         }
     }
 
-    /**
-     * Prevent cancellation if payment is already completed.
-     *
-     * @param OrderInterface $order
-     * @param string|null $chargeId
-     * @return bool
-     */
-    private function isOrderPaidOrCaptured(OrderInterface $order, $chargeId = null)
-    {
-        if ((float)$order->getTotalPaid() > 0 || (float)$order->getTotalDue() <= 0.0001) {
-            return true;
-        }
-
-        $chargeId = $chargeId ?: $this->extractChargeIdFromOrder($order);
-        if (!$chargeId) {
-            return false;
-        }
-
-        try {
-            $charge = $this->amazonAdapter->getCharge($order->getStoreId(), $chargeId);
-            return ($charge['statusDetails']['state'] ?? '') === 'Captured';
-        } catch (\Exception $e) {
-            $this->asyncLogger->error('Unable to verify charge state before cancel. chargeId: ' . $chargeId
-                . ' Error: ' . $e->getMessage());
-        }
-
-        return false;
-    }
-
-    /**
-     * Resolve charge ID from payment transaction data where possible.
-     *
-     * @param OrderInterface $order
-     * @return string|null
-     */
-    private function extractChargeIdFromOrder(OrderInterface $order)
-    {
-        $transactionId = (string)$order->getPayment()->getLastTransId();
-        if ($transactionId === '') {
-            return null;
-        }
-
-        foreach (['-capture', '-void'] as $suffix) {
-            if (substr($transactionId, -strlen($suffix)) === $suffix) {
-                return substr($transactionId, 0, -strlen($suffix));
-            }
-        }
-
-        return $transactionId;
-    }
 }

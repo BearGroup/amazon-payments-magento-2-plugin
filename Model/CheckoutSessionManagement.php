@@ -236,6 +236,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     private $updateCouponUsages;
 
     /**
+     * @var \Amazon\Pay\Model\Payment\PaidOrderGuard
+     */
+    private $paidOrderGuard;
+
+    /**
      * CheckoutSessionManagement constructor.
      *
      * @param \Magento\Store\Model\StoreManagerInterface $storeManager
@@ -273,6 +278,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * @param Session $session
      * @param Translate $translationRenderer
      * @param UpdateCouponUsages $updateCouponUsages
+     * @param \Amazon\Pay\Model\Payment\PaidOrderGuard $paidOrderGuard
      */
     public function __construct(
         \Magento\Store\Model\StoreManagerInterface $storeManager,
@@ -309,7 +315,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         \Amazon\Pay\Logger\Logger $logger,
         Session $session,
         Translate $translationRenderer,
-        UpdateCouponUsages $updateCouponUsages
+        UpdateCouponUsages $updateCouponUsages,
+        \Amazon\Pay\Model\Payment\PaidOrderGuard $paidOrderGuard
     ) {
         $this->storeManager = $storeManager;
         $this->quoteIdMaskFactory = $quoteIdMaskFactory;
@@ -346,6 +353,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         $this->session = $session;
         $this->translationRenderer = $translationRenderer;
         $this->updateCouponUsages = $updateCouponUsages;
+        $this->paidOrderGuard = $paidOrderGuard;
     }
 
     /**
@@ -792,7 +800,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
         } catch (\Exception $e) {
             if (isset($order)) {
-                if ($this->isOrderPaidOrCaptured($order)) {
+                if ($this->paidOrderGuard->isOrderPaidOrCaptured($order, null, false)) {
                     $this->logger->error(
                         'Checkout completion failed after payment succeeded; order not canceled. '
                         . 'amazonSessionId: ' . $amazonSessionId
@@ -1401,7 +1409,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             }
             return ['success'=>true];
         } catch (\Exception $e) {
-            if ($this->isOrderPaidOrCaptured($order, $chargeId)) {
+            if ($this->paidOrderGuard->isOrderPaidOrCaptured($order, $chargeId, false)) {
                 $this->logger->error(
                     'Checkout completion encountered a post-payment error; order not canceled. '
                     . 'amazonSessionId: ' . $amazonSessionId
@@ -1434,34 +1442,6 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 $logEntryDetails
             );
         }
-    }
-
-    /**
-     * Check if payment succeeded enough to prevent canceling the order on follow-up errors.
-     *
-     * @param OrderInterface $order
-     * @param string|null $chargeId
-     * @return bool
-     */
-    private function isOrderPaidOrCaptured(OrderInterface $order, $chargeId = null)
-    {
-        if ((float)$order->getTotalPaid() > 0 || (float)$order->getTotalDue() <= 0.0001) {
-            return true;
-        }
-
-        if (!$chargeId) {
-            return false;
-        }
-
-        try {
-            $charge = $this->amazonAdapter->getCharge($order->getStoreId(), $chargeId);
-            return ($charge['statusDetails']['state'] ?? '') === 'Captured';
-        } catch (\Exception $e) {
-            $this->logger->error('Unable to verify charge state before order cancel. chargeId: ' . $chargeId
-                . ' Error: ' . $e->getMessage());
-        }
-
-        return false;
     }
 
     /**

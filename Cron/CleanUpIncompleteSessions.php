@@ -20,6 +20,7 @@ use Amazon\Pay\Helper\Transaction as TransactionHelper;
 use Amazon\Pay\Logger\Logger;
 use Amazon\Pay\Model\Adapter\AmazonPayAdapter;
 use Amazon\Pay\Model\CheckoutSessionManagement;
+use Amazon\Pay\Model\Payment\PaidOrderGuard;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\OrderRepositoryInterface;
 use Amazon\Pay\Model\AsyncManagement\Charge as AsyncCharge;
@@ -63,12 +64,18 @@ class CleanUpIncompleteSessions
     protected $asyncCharge;
 
     /**
+     * @var PaidOrderGuard
+     */
+    protected $paidOrderGuard;
+
+    /**
      * @param TransactionHelper $transactionHelper
      * @param Logger $logger
      * @param AmazonPayAdapter $amazonPayAdapter
      * @param CheckoutSessionManagement $checkoutSessionManagement
      * @param OrderRepositoryInterface $orderRepository
      * @param AsyncCharge $asyncCharge
+     * @param PaidOrderGuard $paidOrderGuard
      */
     public function __construct(
         TransactionHelper $transactionHelper,
@@ -76,7 +83,8 @@ class CleanUpIncompleteSessions
         AmazonPayAdapter $amazonPayAdapter,
         CheckoutSessionManagement $checkoutSessionManagement,
         OrderRepositoryInterface $orderRepository,
-        AsyncCharge $asyncCharge
+        AsyncCharge $asyncCharge,
+        PaidOrderGuard $paidOrderGuard
     ) {
         $this->transactionHelper = $transactionHelper;
         $this->logger = $logger;
@@ -84,6 +92,7 @@ class CleanUpIncompleteSessions
         $this->checkoutSessionManagement = $checkoutSessionManagement;
         $this->orderRepository = $orderRepository;
         $this->asyncCharge = $asyncCharge;
+        $this->paidOrderGuard = $paidOrderGuard;
     }
 
     /**
@@ -161,7 +170,7 @@ class CleanUpIncompleteSessions
         $order = $this->loadOrder($orderId);
 
         if ($order) {
-            if ($this->isOrderPaidOrCaptured($order)) {
+            if ($this->paidOrderGuard->isOrderPaidOrCaptured($order)) {
                 $this->logger->info(
                     self::LOG_PREFIX . 'Skip cancellation for already paid/captured order: ' . $orderId
                 );
@@ -189,53 +198,4 @@ class CleanUpIncompleteSessions
         }
     }
 
-    /**
-     * Prevent cancellation if payment is already completed.
-     *
-     * @param OrderInterface $order
-     * @return bool
-     */
-    private function isOrderPaidOrCaptured(OrderInterface $order)
-    {
-        if ((float)$order->getTotalPaid() > 0 || (float)$order->getTotalDue() <= 0.0001) {
-            return true;
-        }
-
-        $chargeId = $this->extractChargeIdFromOrder($order);
-        if (!$chargeId) {
-            return false;
-        }
-
-        try {
-            $charge = $this->amazonPayAdapter->getCharge($order->getStoreId(), $chargeId);
-            return ($charge['statusDetails']['state'] ?? '') === 'Captured';
-        } catch (\Exception $e) {
-            $this->logger->error(self::LOG_PREFIX . 'Unable to verify charge state before cancel. chargeId: '
-                . $chargeId . ' Error: ' . $e->getMessage());
-        }
-
-        return false;
-    }
-
-    /**
-     * Resolve charge ID from payment transaction data where possible.
-     *
-     * @param OrderInterface $order
-     * @return string|null
-     */
-    private function extractChargeIdFromOrder(OrderInterface $order)
-    {
-        $transactionId = (string)$order->getPayment()->getLastTransId();
-        if ($transactionId === '') {
-            return null;
-        }
-
-        foreach (['-capture', '-void'] as $suffix) {
-            if (substr($transactionId, -strlen($suffix)) === $suffix) {
-                return substr($transactionId, 0, -strlen($suffix));
-            }
-        }
-
-        return $transactionId;
-    }
 }
