@@ -73,8 +73,8 @@ class SendEmail
                     }
                     // Cancelling a pending invoice resets the order to Processing
                     if ($subject->hasInvoices() &&
-                        !((float)$subject->getTotalPaid() > 0) &&
-                        !((float)$subject->getTotalInvoiced() > 0)
+                        (float)$subject->getTotalPaid() <= 0 &&
+                        (float)$subject->getTotalInvoiced() <= 0
                         ) {
                         return $result;
                     }
