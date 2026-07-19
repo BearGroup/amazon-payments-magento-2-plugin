@@ -130,6 +130,27 @@ class CleanUpIncompleteSessions
                 $transactionData['store_id'],
                 $checkoutSessionId
             );
+            // On API errors the adapter does not throw; it returns the decoded error
+            // body with the HTTP status attached, and statusDetails is absent
+            $status = (int) ($amazonSession['status'] ?? 200);
+            if (!in_array($status, [200, 201])) {
+                if ($status === 404) {
+                    $logMessage = 'Checkout session no longer exists (404 ResourceNotFound), ';
+                    $logMessage .= 'cancelling order and closing transaction: ' . $checkoutSessionId;
+                    $this->logger->info(self::LOG_PREFIX . $logMessage);
+                    $this->cancelOrder(
+                        $orderId,
+                        'The Amazon Pay checkout session expired or no longer exists.'
+                    );
+                    $this->transactionHelper->closeTransaction($transactionData['transaction_id']);
+                } else {
+                    $logMessage = 'Unexpected status ' . $status . ' fetching checkout session: ';
+                    $logMessage .= $checkoutSessionId;
+                    $this->logger->error(self::LOG_PREFIX . $logMessage);
+                }
+                return;
+            }
+
             $state = $amazonSession['statusDetails']['state'] ?? false;
             switch ($state) {
                 case self::SESSION_STATUS_STATE_CANCELED:
