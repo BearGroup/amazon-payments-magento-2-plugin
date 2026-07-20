@@ -20,6 +20,7 @@ use Amazon\Pay\Helper\Transaction as TransactionHelper;
 use Amazon\Pay\Logger\Logger;
 use Amazon\Pay\Model\Adapter\AmazonPayAdapter;
 use Amazon\Pay\Model\CheckoutSessionManagement;
+use Amazon\Pay\Model\Payment\PaidOrderGuard;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\OrderRepositoryInterface;
 use Amazon\Pay\Model\AsyncManagement\Charge as AsyncCharge;
@@ -63,12 +64,18 @@ class CleanUpIncompleteSessions
     protected $asyncCharge;
 
     /**
+     * @var PaidOrderGuard
+     */
+    protected $paidOrderGuard;
+
+    /**
      * @param TransactionHelper $transactionHelper
      * @param Logger $logger
      * @param AmazonPayAdapter $amazonPayAdapter
      * @param CheckoutSessionManagement $checkoutSessionManagement
      * @param OrderRepositoryInterface $orderRepository
      * @param AsyncCharge $asyncCharge
+     * @param PaidOrderGuard $paidOrderGuard
      */
     public function __construct(
         TransactionHelper $transactionHelper,
@@ -76,7 +83,8 @@ class CleanUpIncompleteSessions
         AmazonPayAdapter $amazonPayAdapter,
         CheckoutSessionManagement $checkoutSessionManagement,
         OrderRepositoryInterface $orderRepository,
-        AsyncCharge $asyncCharge
+        AsyncCharge $asyncCharge,
+        PaidOrderGuard $paidOrderGuard
     ) {
         $this->transactionHelper = $transactionHelper;
         $this->logger = $logger;
@@ -84,6 +92,7 @@ class CleanUpIncompleteSessions
         $this->checkoutSessionManagement = $checkoutSessionManagement;
         $this->orderRepository = $orderRepository;
         $this->asyncCharge = $asyncCharge;
+        $this->paidOrderGuard = $paidOrderGuard;
     }
 
     /**
@@ -121,6 +130,27 @@ class CleanUpIncompleteSessions
                 $transactionData['store_id'],
                 $checkoutSessionId
             );
+            // On API errors the adapter does not throw; it returns the decoded error
+            // body with the HTTP status attached, and statusDetails is absent
+            $status = (int) ($amazonSession['status'] ?? 200);
+            if (!in_array($status, [200, 201])) {
+                if ($status === 404) {
+                    $logMessage = 'Checkout session no longer exists (404 ResourceNotFound), ';
+                    $logMessage .= 'cancelling order and closing transaction: ' . $checkoutSessionId;
+                    $this->logger->info(self::LOG_PREFIX . $logMessage);
+                    $this->cancelOrder(
+                        $orderId,
+                        'The Amazon Pay checkout session expired or no longer exists.'
+                    );
+                    $this->transactionHelper->closeTransaction($transactionData['transaction_id']);
+                } else {
+                    $logMessage = 'Unexpected status ' . $status . ' fetching checkout session: ';
+                    $logMessage .= $checkoutSessionId;
+                    $this->logger->error(self::LOG_PREFIX . $logMessage);
+                }
+                return;
+            }
+
             $state = $amazonSession['statusDetails']['state'] ?? false;
             switch ($state) {
                 case self::SESSION_STATUS_STATE_CANCELED:
@@ -161,6 +191,12 @@ class CleanUpIncompleteSessions
         $order = $this->loadOrder($orderId);
 
         if ($order) {
+            if ($this->paidOrderGuard->isOrderPaidOrCaptured($order)) {
+                $this->logger->info(
+                    self::LOG_PREFIX . 'Skip cancellation for already paid/captured order: ' . $orderId
+                );
+                return;
+            }
             $this->checkoutSessionManagement->cancelOrder($order, null, $reasonMessage);
         } else {
             $this->logger->error(self::LOG_PREFIX . 'Order not found for ID: ' . $orderId);
@@ -182,4 +218,5 @@ class CleanUpIncompleteSessions
             return null;
         }
     }
+
 }

@@ -236,6 +236,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     private $updateCouponUsages;
 
     /**
+     * @var \Amazon\Pay\Model\Payment\PaidOrderGuard
+     */
+    private $paidOrderGuard;
+
+    /**
      * CheckoutSessionManagement constructor.
      *
      * @param \Magento\Store\Model\StoreManagerInterface $storeManager
@@ -273,6 +278,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * @param Session $session
      * @param Translate $translationRenderer
      * @param UpdateCouponUsages $updateCouponUsages
+     * @param \Amazon\Pay\Model\Payment\PaidOrderGuard $paidOrderGuard
      */
     public function __construct(
         \Magento\Store\Model\StoreManagerInterface $storeManager,
@@ -309,7 +315,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         \Amazon\Pay\Logger\Logger $logger,
         Session $session,
         Translate $translationRenderer,
-        UpdateCouponUsages $updateCouponUsages
+        UpdateCouponUsages $updateCouponUsages,
+        \Amazon\Pay\Model\Payment\PaidOrderGuard $paidOrderGuard
     ) {
         $this->storeManager = $storeManager;
         $this->quoteIdMaskFactory = $quoteIdMaskFactory;
@@ -346,6 +353,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         $this->session = $session;
         $this->translationRenderer = $translationRenderer;
         $this->updateCouponUsages = $updateCouponUsages;
+        $this->paidOrderGuard = $paidOrderGuard;
     }
 
     /**
@@ -792,11 +800,20 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
         } catch (\Exception $e) {
             if (isset($order)) {
-                $this->closeChargePermission($amazonSessionId, $order, $e);
-                $session = $this->getAmazonSession($amazonSessionId);
-                $cancelledMessage = $this->getCanceledMessage($session);
-                $this->cancelOrder($order, $quote, $cancelledMessage);
-                $this->magentoCheckoutSession->restoreQuote();
+                if ($this->paidOrderGuard->isOrderPaidOrCaptured($order, null, false)) {
+                    $this->logger->error(
+                        'Checkout completion failed after payment succeeded; order not canceled. '
+                        . 'amazonSessionId: ' . $amazonSessionId
+                        . ' orderId: ' . $order->getEntityId()
+                        . ' Error: ' . $e->getMessage()
+                    );
+                } else {
+                    $this->closeChargePermission($amazonSessionId, $order, $e);
+                    $session = $this->getAmazonSession($amazonSessionId);
+                    $cancelledMessage = $this->getCanceledMessage($session);
+                    $this->cancelOrder($order, $quote, $cancelledMessage);
+                    $this->magentoCheckoutSession->restoreQuote();
+                }
             }
 
             throw $e;
@@ -1310,6 +1327,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      */
     private function handlePayment($amazonSessionId, $amazonCheckoutResult, $order, $quote)
     {
+        $chargeId = null;
         try {
             // $amazonCheckoutResult holds success flag and actual result from api call
             $amazonCompleteCheckoutResult = $amazonCheckoutResult['amazonCompleteCheckoutResult'];
@@ -1335,26 +1353,27 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             }
             $amazonCharge = $this->amazonAdapter->getCharge($order->getStoreId(), $chargeId);
 
-            // @TODO: for recurring, the order incremenet ID needs to be updated on the charge
-            //Send merchantReferenceId to Amazon
-            $this->amazonAdapter->updateChargePermission(
-                $order->getStoreId(),
-                $amazonCharge['chargePermissionId'],
-                ['merchantReferenceId' => $order->getIncrementId()]
-            );
-
             $chargeState = $amazonCharge['statusDetails']['state'];
 
             switch ($chargeState) {
                 case 'AuthorizationInitiated':
+                case 'CaptureInitiated':
                     $payment->setIsTransactionClosed(false);
                     $this->setPending($payment);
                     $transaction->setIsClosed(false);
                     $this->asyncManagement->queuePendingAuthorization($chargeId);
                     break;
                 case 'Authorized':
-                    $this->setProcessing($payment);
-                    if ($this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC_THEN_ASYNC) {
+                    if ($this->amazonConfig->getPaymentAction() == PaymentAction::AUTHORIZE_AND_CAPTURE) {
+                        $payment->setIsTransactionClosed(false);
+                        $this->setPending($payment);
+                        $transaction->setIsClosed(false);
+                        $this->asyncManagement->queuePendingAuthorization($chargeId);
+                    } else {
+                        $this->setProcessing($payment);
+                    }
+                    if ($this->amazonConfig->getPaymentAction() == PaymentAction::AUTHORIZE &&
+                        $this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC_THEN_ASYNC) {
                         $this->addCaptureComment($payment, $amazonCharge['chargePermissionId']);
                     }
                     break;
@@ -1377,14 +1396,47 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             );
 
             $this->updateTransactionId($chargeId, $payment, $transaction);
-            $this->updateVaultToken(
-                $amazonSessionId,
-                $amazonCompleteCheckoutResult['chargePermissionId'],
-                $quote,
-                $order
-            );
+
+            // Best-effort update only; should never fail checkout after payment succeeds.
+            try {
+                $this->amazonAdapter->updateChargePermission(
+                    $order->getStoreId(),
+                    $amazonCharge['chargePermissionId'],
+                    ['merchantReferenceId' => $order->getIncrementId()]
+                );
+            } catch (\Exception $e) {
+                $this->logger->error('Unable to update charge permission metadata. chargeId: ' . $chargeId
+                    . ' Error: ' . $e->getMessage());
+            }
+
+            // Best-effort token maintenance only; payment result should not be reversed if this fails.
+            try {
+                $this->updateVaultToken(
+                    $amazonSessionId,
+                    $amazonCompleteCheckoutResult['chargePermissionId'],
+                    $quote,
+                    $order
+                );
+            } catch (\Exception $e) {
+                $this->logger->error('Unable to update vault token. chargeId: ' . $chargeId
+                    . ' Error: ' . $e->getMessage());
+            }
             return ['success'=>true];
         } catch (\Exception $e) {
+            if ($this->paidOrderGuard->isOrderPaidOrCaptured($order, $chargeId, false)) {
+                $this->logger->error(
+                    'Checkout completion encountered a post-payment error; order not canceled. '
+                    . 'amazonSessionId: ' . $amazonSessionId
+                    . ' chargeId: ' . ($chargeId ?: 'n/a')
+                    . ' orderId: ' . $order->getEntityId()
+                    . ' Error: ' . $e->getMessage()
+                );
+                return [
+                    'success' => true,
+                    'order_id' => $order->getEntityId()
+                ];
+            }
+
             $this->closeChargePermission($amazonSessionId, $order, $e);
 
             $session = $this->amazonAdapter->getCheckoutSession(
