@@ -110,8 +110,9 @@ class Transaction
             )
             // No async record pending
             ->where('apa.pending_action IS NULL')
-            // Order awaiting payment
-            ->where("so.status = ?", Order::STATE_PAYMENT_REVIEW)
+            // Order awaiting payment; match on state so orders with custom
+            // statuses assigned by third-party order management are not missed
+            ->where("so.state = ?", Order::STATE_PAYMENT_REVIEW)
             // A transaction is not complete
             ->where('spt.is_closed <> ?', 1)
             // Delay processing new orders

@@ -72,6 +72,11 @@ class Charge extends AbstractOperation
     private $eventManager;
 
     /**
+     * @var \Amazon\Pay\Model\Payment\PaidOrderGuard
+     */
+    private $paidOrderGuard;
+
+    /**
      * Charge constructor.
      *
      * @param \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder
@@ -86,6 +91,7 @@ class Charge extends AbstractOperation
      * @param \Magento\Backend\Model\UrlInterface $urlBuilder
      * @param \Amazon\Pay\Model\AmazonConfig $amazonConfig
      * @param \Magento\Framework\Event\ManagerInterface $eventManager
+     * @param \Amazon\Pay\Model\Payment\PaidOrderGuard $paidOrderGuard
      */
     public function __construct(
         \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder,
@@ -99,9 +105,10 @@ class Charge extends AbstractOperation
         \Magento\Framework\Notification\NotifierInterface $notifier,
         \Magento\Backend\Model\UrlInterface $urlBuilder,
         \Amazon\Pay\Model\AmazonConfig $amazonConfig,
-        \Magento\Framework\Event\ManagerInterface $eventManager
+        \Magento\Framework\Event\ManagerInterface $eventManager,
+        \Amazon\Pay\Model\Payment\PaidOrderGuard $paidOrderGuard
     ) {
-        parent::__construct($orderRepository, $transactionRepository, $searchCriteriaBuilder);
+        parent::__construct($orderRepository, $transactionRepository, $searchCriteriaBuilder, $asyncLogger);
         $this->amazonAdapter = $amazonAdapter;
         $this->asyncLogger = $asyncLogger;
         $this->invoiceRepository = $invoiceRepository;
@@ -111,6 +118,7 @@ class Charge extends AbstractOperation
         $this->urlBuilder = $urlBuilder;
         $this->amazonConfig = $amazonConfig;
         $this->eventManager = $eventManager;
+        $this->paidOrderGuard = $paidOrderGuard;
     }
 
     /**
@@ -209,6 +217,14 @@ class Charge extends AbstractOperation
      */
     public function decline($order, $chargeId, $detail)
     {
+        if ($this->paidOrderGuard->isOrderPaidOrCaptured($order, $chargeId)) {
+            $this->asyncLogger->warning(
+                'Skip decline cancellation for already paid/captured Order #' . $order->getIncrementId()
+                    . ' chargeId: ' . $chargeId
+            );
+            return;
+        }
+
         $invoice = $this->loadInvoice($chargeId, $order);
         if ($invoice) {
             $invoice->cancel();
@@ -259,6 +275,13 @@ class Charge extends AbstractOperation
      */
     public function cancel($order, $detail)
     {
+        if ($this->paidOrderGuard->isOrderPaidOrCaptured($order)) {
+            $this->asyncLogger->warning(
+                'Skip async cancel for already paid/captured Order #' . $order->getIncrementId()
+            );
+            return;
+        }
+
         if (!$order->isCanceled()) {
             $order->addStatusHistoryComment($detail['reasonCode'] . ' - ' . $detail['reasonDescription']);
             $order->cancel();
@@ -368,4 +391,5 @@ class Charge extends AbstractOperation
             $order->save();
         }
     }
+
 }

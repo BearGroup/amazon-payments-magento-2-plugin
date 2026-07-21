@@ -65,6 +65,19 @@ class SendEmail
                     !empty($subject->getStatusHistories()) &&
                     !$subject->getEmailSent()
                     ) {
+                    // Order cancellation flow can pass through Processing transiently
+                    foreach ($subject->getAllItems() as $item) {
+                        if ($item->getQtyCanceled() > 0) {
+                            return $result;
+                        }
+                    }
+                    // Cancelling a pending invoice resets the order to Processing
+                    if ($subject->hasInvoices() &&
+                        (float)$subject->getTotalPaid() <= 0 &&
+                        (float)$subject->getTotalInvoiced() <= 0
+                        ) {
+                        return $result;
+                    }
                     $subject->setCanSendNewEmailFlag(true);
                     $this->orderSender->send($subject);
                 }
