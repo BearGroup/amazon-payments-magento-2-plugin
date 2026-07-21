@@ -26,6 +26,7 @@ use Amazon\Pay\Model\Customer\CompositeMatcher as Matcher;
 use Amazon\Pay\Api\Data\AmazonCustomerInterface;
 use Amazon\Pay\Model\Exception\OrderFailureException;
 use Magento\Quote\Api\Data\CartInterface;
+use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Webapi\Exception as WebapiException;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Customer\Model\CustomerRegistry;
@@ -696,7 +697,14 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     public function cancelOrder($order, $quote = null, $reasonMessage = '')
     {
         if (!$quote) {
-            $quote = $this->getQuote($order);
+            // The quote may have been purged (e.g. aged orders cleaned up by the
+            // clean_quotes cron). Cancellation itself does not need it, so fall back
+            // to null and skip the subscription check below.
+            try {
+                $quote = $this->getQuote($order);
+            } catch (NoSuchEntityException $e) {
+                $quote = null;
+            }
         }
 
         // set order as cancelled
@@ -725,7 +733,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
         $order->save();
 
-        if ($this->subscriptionManager->hasSubscription($quote)) {
+        if ($quote && $this->subscriptionManager->hasSubscription($quote)) {
             $this->subscriptionManager->cancel($order);
         }
     }
@@ -776,6 +784,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         $result = [
             'success' => false
         ];
+
+        // Initialize so the catch block below never references an unset variable
+        // when getQuote() throws (purged quote).
+        $order = null;
+        $quote = null;
 
         try {
             $order = $this->orderRepository->get($orderId);

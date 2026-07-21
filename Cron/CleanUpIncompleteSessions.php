@@ -23,6 +23,7 @@ use Amazon\Pay\Model\CheckoutSessionManagement;
 use Amazon\Pay\Model\Payment\PaidOrderGuard;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\OrderRepositoryInterface;
+use Magento\Sales\Model\Order;
 use Amazon\Pay\Model\AsyncManagement\Charge as AsyncCharge;
 
 class CleanUpIncompleteSessions
@@ -165,7 +166,28 @@ class CleanUpIncompleteSessions
                     $logMessage = 'Checkout session Open, completing: ';
                     $logMessage .= $checkoutSessionId;
                     $this->logger->debug(self::LOG_PREFIX . $logMessage);
-                    $this->checkoutSessionManagement->completeCheckoutSession($checkoutSessionId, null, $orderId);
+                    try {
+                        $this->checkoutSessionManagement->completeCheckoutSession(
+                            $checkoutSessionId,
+                            null,
+                            $orderId
+                        );
+                    } catch (\Exception $e) {
+                        // completeCheckoutSession cancels an unpaid order when completion
+                        // fails (e.g. the quote was purged). If it did, close the still-open
+                        // transaction so the canceled order is not left with a dangling one,
+                        // mirroring the Canceled/404 branches. Otherwise rethrow so genuine
+                        // failures are logged and retried.
+                        $order = $this->loadOrder($orderId);
+                        if ($order && $order->getState() === Order::STATE_CANCELED) {
+                            $logMessage = 'Order canceled during completion, closing transaction: ';
+                            $logMessage .= $checkoutSessionId;
+                            $this->logger->info(self::LOG_PREFIX . $logMessage);
+                            $this->transactionHelper->closeTransaction($transactionData['transaction_id']);
+                        } else {
+                            throw $e;
+                        }
+                    }
                     break;
                 case self::SESSION_STATUS_STATE_COMPLETED:
                     $logMessage = 'Checkout session Completed, nothing more needed: ';
