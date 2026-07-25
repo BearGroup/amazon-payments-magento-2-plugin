@@ -93,7 +93,25 @@ class Config extends \Magento\Framework\View\Element\Template
      */
     public function getJsonConfig()
     {
-        return json_encode($this->getConfig());
+        // JSON_HEX_TAG/JSON_HEX_AMP keep the payload safe to embed in an HTML <script> data block,
+        // where entities are not decoded and only a literal "</script" could terminate it early.
+        return json_encode($this->getConfig(), JSON_HEX_TAG | JSON_HEX_AMP);
+    }
+
+    /**
+     * Should a stale Amazon checkout session be discarded on this page?
+     *
+     * True everywhere except the checkout itself, so returning to the cart abandons a
+     * half-finished Amazon checkout.
+     *
+     * @return bool
+     */
+    public function shouldClearCheckoutSession()
+    {
+        $request = $this->getRequest();
+
+        return $request->getFrontName() != 'checkout'
+            || strpos($request->getPathInfo(), 'checkout/cart') !== false;
     }
 
     /**
