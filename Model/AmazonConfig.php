@@ -125,15 +125,16 @@ class AmazonConfig
      */
     public function isEnabled($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
     {
+        // Check this first: a store view with Amazon Pay switched off has no region or currency to evaluate
+        if (!$this->isActive($scope, $scopeCode)) {
+            return false;
+        }
+
         if (!$this->clientHasAllowedIp()) {
             return false;
         }
 
-        if (!$this->isCurrentCurrencySupportedByAmazon($scope, $scopeCode)) {
-            return false;
-        }
-
-        return $this->isActive($scope, $scopeCode);
+        return $this->isCurrentCurrencySupportedByAmazon($scope, $scopeCode);
     }
 
     /**
@@ -362,7 +363,7 @@ class AmazonConfig
      *
      * @param string $scope
      * @param int|string $scopeCode
-     * @return mixed
+     * @return string
      */
     public function getPaymentRegion($scope = ScopeInterface::SCOPE_STORE, $scopeCode = null)
     {
@@ -370,7 +371,7 @@ class AmazonConfig
             'payment/amazon_payment/payment_region',
             $scope,
             $scopeCode
-        );
+        ) ?? '';
     }
 
     /**
