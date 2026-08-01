@@ -71,8 +71,9 @@ class SendEmail
                         }
                     }
                     if ($subject->hasInvoices() &&
-                        !((float)$subject->getTotalPaid() > 0) &&
-                        !((float)$subject->getTotalInvoiced() > 0)) {
+                        (float)$subject->getTotalPaid() <= 0 &&
+                        (float)$subject->getTotalInvoiced() <= 0
+                        ) {
                         return $result;
                     }
                     $subject->setCanSendNewEmailFlag(true);
