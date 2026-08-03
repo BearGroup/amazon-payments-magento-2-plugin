@@ -9,6 +9,8 @@ use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Message\ManagerInterface;
 use Magento\Sales\Model\Order;
+use \Magento\Sales\Model\Order\CreditmemoFactory;
+use \Magento\Sales\Model\Service\CreditmemoService;
 use Amazon\Pay\Gateway\Config\Config;
 
 class Cancel implements HttpGetActionInterface
@@ -39,24 +41,40 @@ class Cancel implements HttpGetActionInterface
     protected $messageManager;
 
     /**
+     * @var CreditmemoFactory
+     */
+    protected $creditMemoFactory;
+
+    /**
+     * @var CreditmemoService
+     */
+    protected $creditmemoService;
+
+    /**
      * @param RequestInterface $request
      * @param ResultFactory $resultFactory
      * @param Session $magentoCheckoutSession
      * @param CheckoutSessionManagement $checkoutSessionManagement
      * @param ManagerInterface $messageManager
+     * @param CreditmemoFactory $creditMemoFactory
+     * @param CreditmemoService $creditmemoService
      */
     public function __construct(
         RequestInterface $request,
         ResultFactory $resultFactory,
         Session $magentoCheckoutSession,
         CheckoutSessionManagement $checkoutSessionManagement,
-        ManagerInterface $messageManager
+        ManagerInterface $messageManager,
+        CreditmemoFactory $creditMemoFactory,
+        CreditmemoService $creditmemoService
     ) {
         $this->request = $request;
         $this->resultFactory = $resultFactory;
         $this->magentoCheckoutSession = $magentoCheckoutSession;
         $this->checkoutSessionManagement = $checkoutSessionManagement;
         $this->messageManager = $messageManager;
+        $this->creditMemoFactory = $creditMemoFactory;
+        $this->creditmemoService = $creditmemoService;
     }
 
     /**
@@ -91,6 +109,7 @@ class Cancel implements HttpGetActionInterface
                 $quote = $this->magentoCheckoutSession->getQuote();
 
                 if (!$quote->getIsActive()) {
+                    $this->refundIfCharged($order);
                     $this->checkoutSessionManagement->cancelOrder($order, $quote);
 
                     $this->magentoCheckoutSession->restoreQuote();
@@ -101,5 +120,23 @@ class Cancel implements HttpGetActionInterface
         $result = $this->resultFactory->create(ResultFactory::TYPE_REDIRECT);
 
         return $result->setUrl(base64_decode($redirectParam)); // phpcs:ignore Magento2.Functions.DiscouragedFunction
+    }
+
+    protected function refundIfCharged($order)
+    {
+        if ($order->canCreditmemo() && $order->getState() == Order::STATE_PROCESSING) {
+            $invoiceCollection = $order->getInvoiceCollection();
+            $invoice = $invoiceCollection->getFirstItem();
+
+            if ($invoice->getId()) {
+                $creditMemo = $this->creditMemoFactory->createByOrder($order);
+
+                $creditMemo->setInvoice($invoice);
+                $creditMemo->setBaseGrandTotal($invoice->getBaseGrandTotal());
+                $creditMemo->setGrandTotal($invoice->getGrandTotal());
+
+                $this->creditmemoService->refund($creditMemo);
+            }
+        }
     }
 }
