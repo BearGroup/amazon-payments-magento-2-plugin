@@ -17,6 +17,7 @@
 namespace Amazon\Pay\Gateway\Response;
 
 use Magento\Payment\Gateway\Response\HandlerInterface;
+use Magento\Framework\App\State;
 use Magento\Framework\Message\ManagerInterface;
 use Amazon\Pay\Gateway\Helper\SubjectReader;
 use Amazon\Pay\Model\AsyncManagement;
@@ -39,20 +40,28 @@ class RefundHandler implements HandlerInterface
     private $messageManager;
 
     /**
+     * @var State
+     */
+    private $appState;
+
+    /**
      * SettlementHandler constructor.
      *
      * @param SubjectReader $subjectReader
      * @param AsyncManagement $asyncManagement
      * @param ManagerInterface $messageManager
+     * @param State $appState
      */
     public function __construct(
         SubjectReader $subjectReader,
         AsyncManagement $asyncManagement,
-        ManagerInterface $messageManager
+        ManagerInterface $messageManager,
+        State $appState
     ) {
         $this->subjectReader = $subjectReader;
         $this->asyncManagement = $asyncManagement;
         $this->messageManager = $messageManager;
+        $this->appState = $appState;
     }
 
     /**
@@ -72,7 +81,9 @@ class RefundHandler implements HandlerInterface
             // Verify refund via async
             $this->asyncManagement->queuePendingRefund($payment->getOrder()->getId(), $response['refundId']);
 
-            $this->messageManager->addSuccessMessage(__('The refund through Amazon Pay was successful.'));
+            if ($this->appState->getAreaCode() === \Magento\Framework\App\Area::AREA_ADMINHTML) {
+                $this->messageManager->addSuccessMessage(__('The refund through Amazon Pay was successful.'));
+            }
         }
     }
 }

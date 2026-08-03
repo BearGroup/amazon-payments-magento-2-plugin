@@ -727,6 +727,13 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
         if (!$reasonMessage) {
             $reasonMessage = __('Something went wrong. Choose another payment method for checkout and try again.');
+            if ($info = $order->getPayment()->getAdditionalInformation()) {
+                $checkoutSessionId = $info['amazon_session_id'] ?? '';
+                if ($checkoutSessionId) {
+                    $session = $this->getAmazonSession($checkoutSessionId);
+                    $reasonMessage = $this->getCanceledMessage($session);
+                }
+            }
         }
 
         $order->addStatusHistoryComment($reasonMessage);
@@ -1333,6 +1340,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $payment = $order->getPayment();
             $chargeId = $amazonCompleteCheckoutResult['chargeId'];
             $transaction = $this->getTransaction($amazonCompleteCheckoutResult['checkoutSessionId']);
+
+            if (empty($transaction)) {
+                $transaction = $this->getTransaction($amazonCompleteCheckoutResult['chargeId']);
+            }
+
             $completeCheckoutStatus = $amazonCompleteCheckoutResult['status'] ?? '404';
 
             if ($completeCheckoutStatus != '202' &&
