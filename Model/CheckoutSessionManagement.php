@@ -42,6 +42,7 @@ use Magento\Integration\Model\Oauth\TokenFactory as TokenModelFactory;
 use Magento\Authorization\Model\UserContextInterface as UserContext;
 use Magento\Framework\Phrase\Renderer\Translate as Translate;
 use Magento\SalesRule\Model\Coupon\UpdateCouponUsages;
+use Magento\Store\Model\ScopeInterface;
 
 class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManagementInterface
 {
@@ -677,7 +678,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         if ($order->getBaseCurrencyCode() != $order->getOrderCurrencyCode()) {
             $formattedAmount = $formattedAmount . ' [' . $order->formatPriceTxt($payment->getAmountOrdered()) . ']';
         }
-        if ($this->amazonConfig->getPaymentAction() == PaymentAction::AUTHORIZE_AND_CAPTURE) {
+        $paymentAction = $this->amazonConfig->getPaymentAction(
+            ScopeInterface::SCOPE_STORE,
+            $order->getStoreId()
+        );
+        if ($paymentAction == PaymentAction::AUTHORIZE_AND_CAPTURE) {
             $message = __('Captured amount of %1 online.', $formattedAmount);
         } else {
             $message = __('Authorized amount of %1.', $formattedAmount);
@@ -1349,8 +1354,12 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $transaction = $this->getTransaction($amazonCompleteCheckoutResult['checkoutSessionId']);
             $completeCheckoutStatus = $amazonCompleteCheckoutResult['status'] ?? '404';
 
-            if ($completeCheckoutStatus != '202' &&
-                $this->amazonConfig->getPaymentAction() == PaymentAction::AUTHORIZE_AND_CAPTURE) {
+            $paymentAction = $this->amazonConfig->getPaymentAction(
+                ScopeInterface::SCOPE_STORE,
+                $order->getStoreId()
+            );
+
+            if ($completeCheckoutStatus != '202' && $paymentAction == PaymentAction::AUTHORIZE_AND_CAPTURE) {
                 // capture on Amazon Pay
                 $this->amazonAdapter->captureCharge(
                     $order->getStoreId(),
