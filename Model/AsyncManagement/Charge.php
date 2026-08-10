@@ -23,6 +23,7 @@ use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Model\Order;
 use Magento\Sales\Model\Order\Invoice;
 use Magento\Framework\Event\ManagerInterface;
+use Magento\Store\Model\ScopeInterface;
 
 class Charge extends AbstractOperation
 {
@@ -155,8 +156,11 @@ class Charge extends AbstractOperation
             // Compare Charge State with Order State
             if (isset($charge['statusDetails'])) {
                 $state = $charge['statusDetails']['state'];
-                if ($this->amazonConfig->getPaymentAction() == PaymentAction::AUTHORIZE_AND_CAPTURE &&
-                    $state == 'Authorized') {
+                $paymentAction = $this->amazonConfig->getPaymentAction(
+                    ScopeInterface::SCOPE_STORE,
+                    $order->getStoreId()
+                );
+                if ($paymentAction == PaymentAction::AUTHORIZE_AND_CAPTURE && $state == 'Authorized') {
                     $this->amazonAdapter->captureCharge(
                         $order->getStoreId(),
                         $chargeId,
