@@ -2,6 +2,7 @@
 
 ## 5.18.5
 * Added compatibility with PHP 8.5
+* Fixed minicart and checkout button breaking on store views with no Amazon Pay payment region configured
 * Fixed JavaScript error "$elem.uniqueId is not a function" on checkout
 * Fixed compatibility with newer Symfony versions
 
