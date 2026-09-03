@@ -13,23 +13,46 @@
  * permissions and limitations under the License.
  */
 
- define([
+define([
     'jquery',
     'underscore',
     'mage/storage',
     'mage/url',
-    'Magento_Customer/js/customer-data'
-], function ($, _, remoteStorage, url, customerData) {
+    'Magento_Customer/js/customer-data',
+    'Amazon_Pay/js/model/safe-storage'
+], function ($, _, remoteStorage, url, customerData, safeStorage) {
     'use strict';
 
-    var callbacks = []; 
+    var callbacks = [];
     var localStorage = null;
     var getLocalStorage = function () {
         if (localStorage === null) {
-            localStorage = $.initNamespaceStorage('amzn-checkout-session-config').localStorage;
+            localStorage = safeStorage('amzn-checkout-session-config');
         }
         return localStorage;
-    };  
+    };
+
+    /**
+     * Hand the config to everyone waiting on the in-flight request.
+     *
+     * The queue is taken and emptied before any callback runs: the
+     * `callbacks.length == 1` guard below is what stops a second request being
+     * issued while one is in flight, so an entry left behind by a failed
+     * request - or by a callback that throws - would wedge that guard and leave
+     * the button silently dead for the rest of the page's life.
+     *
+     * @param {Object} config
+     */
+    var resolve = function (config) {
+        var waiting = callbacks;
+
+        callbacks = [];
+
+        _.each(waiting, function (waitingCallback) {
+            waitingCallback(config);
+        });
+    };
+
     return function (callback, forceReload = false) {
         var cartId = customerData.get('cart')()['data_id'] || window.checkout.storeId;
         var config = getLocalStorage().get('config') || false;
@@ -42,13 +65,17 @@
                 remoteStorage.get(url.build('amazon_pay/checkout/config')).done(function (config) {
                     getLocalStorage().set('cart_id', cartId);
                     getLocalStorage().set('config', config);
-                    do {
-                        callbacks.shift()(config);
-                    } while (callbacks.length);
+                    resolve(config);
+                }).fail(function (response) {
+                    // Deliberately not resolved with the cached config: a stale
+                    // PayNow payload carries a stale charge amount. The cache is
+                    // left untouched so the next draw or click retries.
+                    console.error('Amazon Pay: unable to load the checkout session config.', response);
+                    resolve({});
                 });
             }
         } else {
             callback(getLocalStorage().get('config'));
         }
-    };  
+    };
 });

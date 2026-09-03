@@ -14,7 +14,8 @@ define([
          * @param {Object} messageContainer
          */
         errorProcessor.process = function (response, messageContainer) {
-            var error;
+            var error,
+                isAmazonCheckout = false;
 
             messageContainer = messageContainer || globalMessageList;
 
@@ -22,18 +23,38 @@ define([
                 this.redirectTo(url.build('customer/account/login/'));
             } else {
                 try {
-                    if (amazonStorage.isAmazonCheckout() && response.hasOwnProperty('message')) {
-                        error = {
-                            message: $t(response.message)
-                        };
-                    } else {
-                        error = JSON.parse(response.responseText);
-                    }
+                    isAmazonCheckout = amazonStorage.isAmazonCheckout();
                 } catch (exception) {
-                    error = {
-                        message: $t('Something went wrong with your request. Please try again later.')
-                    };
+                    // Reading the checkout session must not decide which message
+                    // the shopper sees: a storage failure here used to discard a
+                    // perfectly good response body in favour of the generic
+                    // message below.
+                    console.error('Amazon Pay: unable to read the checkout session.', exception);
                 }
+
+                if (isAmazonCheckout && response.hasOwnProperty('message')) {
+                    error = {
+                        message: $t(response.message)
+                    };
+                } else {
+                    try {
+                        error = JSON.parse(response.responseText);
+                    } catch (exception) {
+                        // Not a JSON body - an HTML error page, a redirect to the
+                        // login form, or an empty response. Log it: the generic
+                        // message that replaces it carries no clue as to what
+                        // actually failed, and this mixin overrides the error
+                        // processor for every payment method on the page.
+                        console.error(
+                            'Amazon Pay: unexpected non-JSON response (HTTP ' + response.status + ').',
+                            response.responseText
+                        );
+                        error = {
+                            message: $t('Something went wrong with your request. Please try again later.')
+                        };
+                    }
+                }
+
                 messageContainer.addErrorMessage(error);
             }
         }

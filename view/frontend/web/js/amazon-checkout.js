@@ -14,10 +14,19 @@
  */
 
 define([
-    'require',
-    'Amazon_Pay/js/model/storage',
-], function (requre, amazonStorage) {
+    'Amazon_Pay/js/model/storage'
+], function (amazonStorage) {
     'use strict';
+
+    /**
+     * Magento's frontend RequireJS config sets `waitSeconds: 0`, which disables
+     * RequireJS' own load timeout. Without a timeout of our own, a checkout.js
+     * request that never completes - a real possibility in a throttled or
+     * suspended in-app browser - leaves the caller waiting on a callback that
+     * never arrives, with nothing logged.
+     */
+    var loadTimeout = 15000;
+
     return {
         /**
          * Return the appropriate (region-specific) checkout.js module name
@@ -41,11 +50,73 @@ define([
         },
 
         /**
+         * Load the region's checkout.js and hand window.amazon to onReady.
+         *
+         * onError is called - once - if the script cannot be loaded, does not
+         * arrive within loadTimeout, or loads without exposing window.amazon.Pay.
+         * Callers that latch state while waiting must use it, otherwise a failed
+         * third-party script load leaves them wedged for the life of the page.
+         *
+         * @param {Function} onReady
+         * @param {Function} [onError]
+         */
+        loadAmazonCheckout: function (onReady, onError) {
+            var moduleName = this.getCheckoutModuleName(),
+                settled = false,
+                timer,
+                fail = function (reason, detail, undefModule) {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    clearTimeout(timer);
+
+                    // Drop the failed module so a later draw or click re-requests
+                    // the script instead of being handed the failure again. Not
+                    // done on timeout: the request may still be in flight.
+                    if (undefModule && typeof require.undef === 'function') {
+                        try {
+                            require.undef(moduleName);
+                        } catch (e) {
+                            // Nothing to clean up; not worth losing the report below.
+                        }
+                    }
+
+                    console.error('Amazon Pay: ' + reason + ' (' + moduleName + ')', detail || '');
+
+                    if (onError) {
+                        onError(reason);
+                    }
+                };
+
+            timer = setTimeout(function () {
+                fail('timed out loading the Amazon Pay checkout script', null, false);
+            }, loadTimeout);
+
+            require([moduleName], function () {
+                if (settled) {
+                    return;
+                }
+
+                if (typeof window.amazon === 'undefined' || !window.amazon.Pay) {
+                    fail('the Amazon Pay checkout script loaded without exposing window.amazon.Pay', null, true);
+                    return;
+                }
+
+                settled = true;
+                clearTimeout(timer);
+                onReady(window.amazon);
+            }, function (error) {
+                fail('failed to load the Amazon Pay checkout script', error, true);
+            });
+        },
+
+        /**
          * Wrapper for accessing window.amazon safely
          */
         withAmazonCheckout: function(cb, _this) {
             var args = Array.prototype.slice.call(arguments, 2);
-            return require([this.getCheckoutModuleName()], function() {
+            return this.loadAmazonCheckout(function (amazon) {
                 return cb.apply(_this, [amazon].concat(args));
             });
         }

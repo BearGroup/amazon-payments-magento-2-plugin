@@ -25,6 +25,7 @@ define([
     'Magento_Checkout/js/model/error-processor',
     'Magento_Ui/js/model/messageList',
     'Amazon_Pay/js/amazon-add-to-cart',
+    'mage/translate'
 ], function (
         ko,
         $,
@@ -37,9 +38,13 @@ define([
         storage,
         errorProcessor,
         globalMessageList,
-        amazonAddToCart
+        amazonAddToCart,
+        $t
     ) {
     'use strict';
+
+    // How long to wait before the single retry of a failed checkout.js load.
+    var retryDelay = 2000;
 
     $.widget('amazon.AmazonButton', {
         options: {
@@ -54,7 +59,7 @@ define([
         amazonPayButton: null,
         currencyCode: null,
 
-        _loadButtonConfig: function (callback, forceReload = false) {
+        _loadButtonConfig: function (callback, forceReload = false, onUnavailable = null) {
             checkoutSessionConfigLoad(function (checkoutSessionConfig) {
                 if (!$.isEmptyObject(checkoutSessionConfig)) {
                     var payload = checkoutSessionConfig['checkout_payload'];
@@ -65,12 +70,12 @@ define([
                         signature = checkoutSessionConfig['paynow_signature'];
                     }
 
-                    self.currencyCode = checkoutSessionConfig['currency'];
+                    this.currencyCode = checkoutSessionConfig['currency'];
 
                     var buttonConfig = {
                         merchantId: checkoutSessionConfig['merchant_id'],
                         publicKeyId: checkoutSessionConfig['public_key_id'],
-                        ledgerCurrency: self.currencyCode,
+                        ledgerCurrency: this.currencyCode,
                         sandbox: checkoutSessionConfig['sandbox'],
                         checkoutLanguage: checkoutSessionConfig['language'],
                         productType: this._isPayOnly(checkoutSessionConfig['pay_only']) ? 'PayOnly' : 'PayAndShip',
@@ -96,6 +101,10 @@ define([
                     }
                 } else {
                     $(this.options.hideIfUnavailable).hide();
+
+                    if (onUnavailable) {
+                        onUnavailable();
+                    }
                 }
             }.bind(this), forceReload);
         },
@@ -103,13 +112,13 @@ define([
         _getEstimatedAmount: function () {
             var subtotal = (parseFloat(customerData.get('cart')().subtotalAmount) || 0).toFixed(2);
 
-            if (self.currencyCode === 'JPY') {
+            if (this.currencyCode === 'JPY') {
                 subtotal = parseFloat(subtotal).toFixed(0);
             }
 
             return {
                 amount: subtotal,
-                currencyCode: self.currencyCode
+                currencyCode: this.currencyCode
             };
         },
 
@@ -144,18 +153,18 @@ define([
         /**
          * Draw button
          */
-        _draw: function () {
+        _draw: function (isRetry) {
             var self = this;
 
             if (!this.drawing) {
                 this.drawing = true;
                 var $buttonContainer = this.element;
-                amazonCheckout.withAmazonCheckout(function (amazon, args) {
+                amazonCheckout.loadAmazonCheckout(function (amazon) {
                     var $buttonRoot = $('<div></div>');
                     $buttonRoot.html('<img src="' + require.toUrl('images/loader-1.gif') + '" alt="" width="24" />');
                     $buttonContainer.empty().append($buttonRoot);
 
-                    this._loadButtonConfig(function (buttonConfig) {
+                    self._loadButtonConfig(function (buttonConfig) {
                         // remove session config to decouple button, allowing onclick adjustment
                         if(self._isAmazonPayShownAsPaymentMethod() || self.options.placement === 'Product') {
                             delete buttonConfig.createCheckoutSessionConfig;
@@ -164,7 +173,8 @@ define([
                         try {
                             self.amazonPayButton = amazon.Pay.renderButton('#' + $buttonRoot.empty().removeUniqueId().uniqueId().attr('id'), buttonConfig);
                         } catch (e) {
-                            console.log('Amazon Pay button render error: ' + e);
+                            console.error('Amazon Pay button render error: ' + e);
+                            self.drawing = false;
                             return;
                         }
 
@@ -189,8 +199,23 @@ define([
                                 self._toggleApbAvailability(data);
                             });
                         }
+                    }, false, function () {
+                        // Amazon Pay is not available for this cart. Nothing was
+                        // rendered, so release the guard for a later redraw.
+                        self.drawing = false;
                     });
-                }, this);
+                }, function () {
+                    self.drawing = false;
+
+                    // A cold, throttled in-app browser drops the cross-origin
+                    // checkout.js often enough to be worth one retry: without it
+                    // the button stays a spinner for the life of the page.
+                    if (!isRetry) {
+                        setTimeout(function () {
+                            self._draw(true);
+                        }, retryDelay);
+                    }
+                });
             }
         },
 
@@ -208,6 +233,8 @@ define([
         },
 
         _initOneStepCheckout: function () {
+            var self = this;
+
             //This is for compatibility with Iosc. We need to update the customer's Magento session before getting the final config and payload
             storage.post(
                 'checkout/onepage/update',
@@ -241,7 +268,12 @@ define([
             this._loadButtonConfig(function (buttonConfig) {
                 var initConfig = {createCheckoutSessionConfig: buttonConfig.createCheckoutSessionConfig};
                 self.amazonPayButton.initCheckout(initConfig);
-            }, true);
+            }, true, function () {
+                // Say something rather than letting the click look ignored.
+                globalMessageList.addErrorMessage({
+                    message: $t('Amazon could not process your request.')
+                });
+            });
             customerData.invalidate('*');
         },
 
