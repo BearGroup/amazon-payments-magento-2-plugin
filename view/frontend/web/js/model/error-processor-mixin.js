@@ -41,13 +41,18 @@ define([
                         error = JSON.parse(response.responseText);
                     } catch (exception) {
                         // Not a JSON body - an HTML error page, a redirect to the
-                        // login form, or an empty response. Log it: the generic
-                        // message that replaces it carries no clue as to what
-                        // actually failed, and this mixin overrides the error
-                        // processor for every payment method on the page.
+                        // login form, or an empty response. Report enough to tell
+                        // those apart: the generic message that replaces it
+                        // carries no clue as to what actually failed, and this
+                        // mixin overrides the error processor for every payment
+                        // method on the page. The body itself is deliberately
+                        // left out - an HTML error page can carry form keys and
+                        // customer details, and console output is collected by
+                        // session-replay and monitoring scripts.
                         console.error(
-                            'Amazon Pay: unexpected non-JSON response (HTTP ' + response.status + ').',
-                            response.responseText
+                            'Amazon Pay: unexpected non-JSON response (HTTP '
+                            + response.status + ' ' + (response.statusText || '')
+                            + ', ' + ((response.responseText || '').length) + ' bytes).'
                         );
                         error = {
                             message: $t('Something went wrong with your request. Please try again later.')

@@ -59,8 +59,17 @@ define([
         amazonPayButton: null,
         currencyCode: null,
 
+        /**
+         * @param {Function} callback - given the button config
+         * @param {Boolean} [forceReload]
+         * @param {Function} [onUnavailable] - given true when the config could
+         *                                     not be fetched, as opposed to
+         *                                     Amazon Pay simply not being
+         *                                     available for this cart
+         * @private
+         */
         _loadButtonConfig: function (callback, forceReload = false, onUnavailable = null) {
-            checkoutSessionConfigLoad(function (checkoutSessionConfig) {
+            checkoutSessionConfigLoad(function (checkoutSessionConfig, failed) {
                 if (!$.isEmptyObject(checkoutSessionConfig)) {
                     var payload = checkoutSessionConfig['checkout_payload'];
                     var signature = checkoutSessionConfig['checkout_signature'];
@@ -103,7 +112,7 @@ define([
                     $(this.options.hideIfUnavailable).hide();
 
                     if (onUnavailable) {
-                        onUnavailable();
+                        onUnavailable(failed === true);
                     }
                 }
             }.bind(this), forceReload);
@@ -200,8 +209,10 @@ define([
                             });
                         }
                     }, false, function () {
-                        // Amazon Pay is not available for this cart. Nothing was
-                        // rendered, so release the guard for a later redraw.
+                        // Amazon Pay is not available for this cart, or its config
+                        // could not be fetched. Either way nothing is rendered, so
+                        // drop the spinner and release the guard for a later redraw.
+                        $buttonRoot.empty();
                         self.drawing = false;
                     });
                 }, function () {
@@ -268,10 +279,12 @@ define([
             this._loadButtonConfig(function (buttonConfig) {
                 var initConfig = {createCheckoutSessionConfig: buttonConfig.createCheckoutSessionConfig};
                 self.amazonPayButton.initCheckout(initConfig);
-            }, true, function () {
+            }, true, function (failed) {
                 // Say something rather than letting the click look ignored.
                 globalMessageList.addErrorMessage({
-                    message: $t('Amazon could not process your request.')
+                    message: failed
+                        ? $t('Amazon Pay is temporarily unavailable. Please try again.')
+                        : $t('Amazon could not process your request.')
                 });
             });
             customerData.invalidate('*');
