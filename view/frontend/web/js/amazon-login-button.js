@@ -29,8 +29,25 @@ define([
                 placement: 'Cart',
             },
 
-            _loadButtonConfig: function (config, callback) {
+            /**
+             * @param {Object} config
+             * @param {Function} callback - not called when Amazon Pay is
+             *                              unavailable or its config could not
+             *                              be fetched; an empty config renders
+             *                              a button that cannot sign anyone in
+             * @param {Function} [onUnavailable]
+             * @private
+             */
+            _loadButtonConfig: function (config, callback, onUnavailable) {
                 checkoutSessionConfigLoad(function (checkoutSessionConfig) {
+                    if ($.isEmptyObject(checkoutSessionConfig)) {
+                        if (onUnavailable) {
+                            onUnavailable();
+                        }
+
+                        return;
+                    }
+
                     callback({
                         merchantId: checkoutSessionConfig['merchant_id'],
                         ledgerCurrency: checkoutSessionConfig['currency'],
@@ -80,6 +97,10 @@ define([
                         }
                         $('.amazon-sign-in-button-container .field-tooltip').fadeIn();
                         $('.login-with-amazon').click(function() { customerData.invalidate('*'); });
+                    }, function () {
+                        // Nothing to render: drop the spinner rather than leave
+                        // it spinning for the life of the page.
+                        $buttonRoot.empty();
                     });
                 }, this);
             },

@@ -16,15 +16,15 @@
 define([
     'jquery',
     'Amazon_Pay/js/model/amazon-pay-config',
-    'jquery/jquery-storageapi'
-], function ($, amazonPayConfig) {
+    'Amazon_Pay/js/model/safe-storage'
+], function ($, amazonPayConfig, safeStorage) {
     'use strict';
 
     var isEnabled = amazonPayConfig.isDefined(),
         storage = null,
         getStorage = function () {
             if (storage === null) {
-                storage = $.initNamespaceStorage('amzn-checkout-session').localStorage;
+                storage = safeStorage('amzn-checkout-session');
             }
             return storage;
         };
