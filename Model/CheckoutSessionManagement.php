@@ -709,6 +709,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         // cancel invoices
         foreach ($order->getInvoiceCollection() as $invoice) {
             $invoice->setState(Invoice::STATE_CANCELED);
+            // the order save does not cascade to invoices, so register it to be saved with the order
+            $order->addRelatedObject($invoice);
         }
 
         // decrement coupon usages if applicable
