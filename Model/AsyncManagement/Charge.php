@@ -264,10 +264,31 @@ class Charge extends AbstractOperation
     public function cancel($order, $detail)
     {
         if (!$order->isCanceled()) {
-            $order->addStatusHistoryComment($detail['reasonCode'] . ' - ' . $detail['reasonDescription']);
+            // An order whose items are all invoiced cannot be canceled, and with "Charge on order" the invoice
+            // exists from the moment the order is placed. Cancel the unpaid invoices first.
+            foreach ($order->getInvoiceCollection() as $invoice) {
+                if ($invoice->canCancel()) {
+                    $invoice->cancel();
+                    $order->addRelatedObject($invoice);
+                }
+            }
+
             $order->cancel();
+            $order->addStatusHistoryComment($detail['reasonCode'] . ' - ' . $detail['reasonDescription']);
+
             $order->save();
-            $this->asyncLogger->info('Canceled Order #' . $order->getIncrementId());
+
+            if ($order->isCanceled()) {
+                $transaction = $this->getTransaction($order->getPayment()->getLastTransId());
+                if ($transaction) {
+                    $transaction->setIsClosed(true)->save();
+                }
+                $this->asyncLogger->info('Canceled Order #' . $order->getIncrementId());
+            } else {
+                $this->asyncLogger->error(
+                    'Unable to cancel Order #' . $order->getIncrementId() . ', order state: ' . $order->getState()
+                );
+            }
         }
     }
 
