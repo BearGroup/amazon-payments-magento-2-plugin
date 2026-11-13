@@ -268,14 +268,24 @@ class Charge extends AbstractOperation
             // An order whose items are all invoiced cannot be canceled, and with "Charge on order" the invoice
             // exists from the moment the order is placed. Cancel the unpaid invoices first, except those that
             // belong to another charge: that charge may still be captured.
+            $otherChargePending = false;
             foreach ($order->getInvoiceCollection() as $invoice) {
-                if ($invoice->canCancel() && !$this->isInvoiceOfAnotherCharge($invoice, $chargeId)) {
-                    $invoice->cancel();
-                    $order->addRelatedObject($invoice);
+                if (!$invoice->canCancel()) {
+                    continue;
                 }
+                if ($this->isInvoiceOfAnotherCharge($invoice, $chargeId)) {
+                    $otherChargePending = true;
+                    continue;
+                }
+                $invoice->cancel();
+                $order->addRelatedObject($invoice);
             }
 
-            $order->cancel();
+            // Canceling the order closes the charge permission at Amazon, which cancels the other pending
+            // charges as well. Keep the order while another charge is still pending.
+            if (!$otherChargePending) {
+                $order->cancel();
+            }
             $order->addStatusHistoryComment($detail['reasonCode'] . ' - ' . $detail['reasonDescription']);
 
             $order->save();
@@ -286,6 +296,11 @@ class Charge extends AbstractOperation
                     $transaction->setIsClosed(true)->save();
                 }
                 $this->asyncLogger->info('Canceled Order #' . $order->getIncrementId());
+            } elseif ($otherChargePending) {
+                $this->asyncLogger->info(
+                    'Canceled charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
+                    . ', order kept: another charge is still pending'
+                );
             } else {
                 $this->asyncLogger->error(
                     'Unable to cancel Order #' . $order->getIncrementId() . ', order state: ' . $order->getState()
