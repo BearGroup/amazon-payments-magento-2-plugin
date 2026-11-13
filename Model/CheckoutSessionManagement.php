@@ -706,8 +706,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         }
         $order->getPayment()->setIsTransactionClosed(true);
 
-        // cancel invoices
+        // cancel unpaid invoices; a paid invoice records money that was captured and has to stay as it is
         foreach ($order->getInvoiceCollection() as $invoice) {
+            if (!$invoice->canCancel()) {
+                continue;
+            }
             $invoice->setState(Invoice::STATE_CANCELED);
             // the order save does not cascade to invoices, so register it to be saved with the order
             $order->addRelatedObject($invoice);
