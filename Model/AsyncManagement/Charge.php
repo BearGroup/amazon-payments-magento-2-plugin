@@ -180,7 +180,7 @@ class Charge extends AbstractOperation
                         break;
                     case 'Canceled':
                         $this->setProcessing($order);
-                        $this->cancel($order, $charge['statusDetails']);
+                        $this->cancel($order, $charge['statusDetails'], $chargeId);
                         $complete = true;
                         break;
                     case 'Authorized':
@@ -259,15 +259,17 @@ class Charge extends AbstractOperation
      *
      * @param \Magento\Sales\Model\Order $order
      * @param mixed $detail
+     * @param string|null $chargeId
      * @return void
      */
-    public function cancel($order, $detail)
+    public function cancel($order, $detail, $chargeId = null)
     {
         if (!$order->isCanceled()) {
             // An order whose items are all invoiced cannot be canceled, and with "Charge on order" the invoice
-            // exists from the moment the order is placed. Cancel the unpaid invoices first.
+            // exists from the moment the order is placed. Cancel the unpaid invoices first, except those that
+            // belong to another charge: that charge may still be captured.
             foreach ($order->getInvoiceCollection() as $invoice) {
-                if ($invoice->canCancel()) {
+                if ($invoice->canCancel() && !$this->isInvoiceOfAnotherCharge($invoice, $chargeId)) {
                     $invoice->cancel();
                     $order->addRelatedObject($invoice);
                 }
@@ -290,6 +292,26 @@ class Charge extends AbstractOperation
                 );
             }
         }
+    }
+
+    /**
+     * Whether the invoice is tied to an Amazon charge other than the given one
+     *
+     * While the authorization is pending the invoice holds the checkout session ID instead of a charge ID; such
+     * an invoice is not tied to any other charge.
+     *
+     * @param \Magento\Sales\Model\Order\Invoice $invoice
+     * @param string|null $chargeId
+     * @return bool
+     */
+    private function isInvoiceOfAnotherCharge($invoice, $chargeId)
+    {
+        $transactionId = (string) $invoice->getTransactionId();
+        if (!$chargeId || !preg_match('/^[A-Z]\d{2}-\d{7}-\d{7}-[A-Z]\d{6}/', $transactionId)) {
+            return false;
+        }
+
+        return strpos($transactionId, (string) $chargeId) !== 0;
     }
 
     /**
