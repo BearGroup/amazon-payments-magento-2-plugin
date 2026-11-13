@@ -696,6 +696,22 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $quote = $this->getQuote($order);
         }
 
+        // A paid invoice means the money was captured. A canceled order cannot be refunded from the admin,
+        // so keep the order and leave the refund decision to the merchant.
+        foreach ($order->getInvoiceCollection() as $invoice) {
+            if ($invoice->getState() == Invoice::STATE_PAID) {
+                $this->logger->error(
+                    'Order #' . $order->getIncrementId() . ' was not canceled because its payment is already '
+                    . 'captured. Cancel reason: ' . $reasonMessage
+                );
+                $order->addStatusHistoryComment(
+                    __('The order was not canceled because its payment is already captured. %1', $reasonMessage)
+                );
+                $order->save();
+                return;
+            }
+        }
+
         // set order as cancelled
         $order->setState(\Magento\Sales\Model\Order::STATE_CANCELED)->setStatus(
             \Magento\Sales\Model\Order::STATE_CANCELED
