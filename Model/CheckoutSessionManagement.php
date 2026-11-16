@@ -237,6 +237,13 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     private $updateCouponUsages;
 
     /**
+     * IDs of the orders whose charge was captured at Amazon in this request
+     *
+     * @var bool[]
+     */
+    private $capturedOrderIds = [];
+
+    /**
      * CheckoutSessionManagement constructor.
      *
      * @param \Magento\Store\Model\StoreManagerInterface $storeManager
@@ -696,20 +703,18 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $quote = $this->getQuote($order);
         }
 
-        // A paid invoice means the money was captured. A canceled order cannot be refunded from the admin,
-        // so keep the order and leave the refund decision to the merchant.
-        foreach ($order->getInvoiceCollection() as $invoice) {
-            if ($invoice->getState() == Invoice::STATE_PAID) {
-                $this->logger->error(
-                    'Order #' . $order->getIncrementId() . ' was not canceled because its payment is already '
-                    . 'captured. Cancel reason: ' . $reasonMessage
-                );
-                $order->addStatusHistoryComment(
-                    __('The order was not canceled because its payment is already captured. %1', $reasonMessage)
-                );
-                $order->save();
-                return;
-            }
+        // The money was captured. A canceled order cannot be refunded from the admin, so keep the order and
+        // leave the refund decision to the merchant.
+        if ($this->isPaymentCaptured($order)) {
+            $this->logger->error(
+                'Order #' . $order->getIncrementId() . ' was not canceled because its payment is already '
+                . 'captured. Cancel reason: ' . $reasonMessage
+            );
+            $order->addStatusHistoryComment(
+                __('The order was not canceled because its payment is already captured. %1', $reasonMessage)
+            );
+            $order->save();
+            return;
         }
 
         // Cancel unpaid invoices first. This takes the invoiced quantities and totals off the order; items that
@@ -748,6 +753,30 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         if ($this->subscriptionManager->hasSubscription($quote)) {
             $this->subscriptionManager->cancel($order);
         }
+    }
+
+    /**
+     * Whether the payment of the order was captured
+     *
+     * The invoice is marked as paid only after the capture at Amazon, so a capture made in this request counts
+     * even while the invoice is still open.
+     *
+     * @param OrderInterface $order
+     * @return bool
+     */
+    private function isPaymentCaptured($order)
+    {
+        if (isset($this->capturedOrderIds[$order->getId()])) {
+            return true;
+        }
+
+        foreach ($order->getInvoiceCollection() as $invoice) {
+            if ($invoice->getState() == Invoice::STATE_PAID) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1339,12 +1368,19 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 
             if ($completeCheckoutStatus != '202' && $paymentAction == PaymentAction::AUTHORIZE_AND_CAPTURE) {
                 // capture on Amazon Pay
-                $this->amazonAdapter->captureCharge(
+                $captureResponse = $this->amazonAdapter->captureCharge(
                     $order->getStoreId(),
                     $chargeId,
                     $order->getGrandTotal(),
                     $order->getOrderCurrencyCode()
                 );
+                // remember the capture: if a later step fails, the order must not be canceled
+                $captureState = $captureResponse['statusDetails']['state'] ?? '';
+                if (in_array($captureResponse['status'] ?? null, [200, 201])
+                    && in_array($captureState, ['Captured', 'CaptureInitiated'])
+                ) {
+                    $this->capturedOrderIds[$order->getId()] = true;
+                }
                 $this->setProcessing($payment, false);
                 // capture and invoice on the Magento side
                 if ($this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC) {
