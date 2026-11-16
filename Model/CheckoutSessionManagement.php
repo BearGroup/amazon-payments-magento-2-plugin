@@ -712,6 +712,18 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             }
         }
 
+        // Cancel unpaid invoices first. This takes the invoiced quantities and totals off the order; items that
+        // still count as invoiced are not canceled below and their inventory reservations are not released.
+        // Invoice::cancel() sets the order to processing, so it has to run before the order is set to canceled.
+        foreach ($order->getInvoiceCollection() as $invoice) {
+            if (!$invoice->canCancel()) {
+                continue;
+            }
+            $invoice->cancel();
+            // the order save does not cascade to invoices, so register it to be saved with the order
+            $order->addRelatedObject($invoice);
+        }
+
         // set order as cancelled
         $order->setState(\Magento\Sales\Model\Order::STATE_CANCELED)->setStatus(
             \Magento\Sales\Model\Order::STATE_CANCELED
@@ -721,16 +733,6 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $item->cancel();
         }
         $order->getPayment()->setIsTransactionClosed(true);
-
-        // cancel unpaid invoices; a paid invoice records money that was captured and has to stay as it is
-        foreach ($order->getInvoiceCollection() as $invoice) {
-            if (!$invoice->canCancel()) {
-                continue;
-            }
-            $invoice->setState(Invoice::STATE_CANCELED);
-            // the order save does not cascade to invoices, so register it to be saved with the order
-            $order->addRelatedObject($invoice);
-        }
 
         // decrement coupon usages if applicable
         $this->updateCouponUsages->execute($order, false);
