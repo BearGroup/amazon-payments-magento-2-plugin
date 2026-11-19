@@ -1379,7 +1379,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 if (in_array($captureResponse['status'] ?? null, [200, 201])
                     && in_array($captureState, ['Captured', 'CaptureInitiated'])
                 ) {
-                    $this->capturedOrderIds[$order->getId()] = true;
+                    $this->capturedOrderIds[$order->getId()] = $captureState;
                 }
                 $this->setProcessing($payment, false);
                 // capture and invoice on the Magento side
@@ -1439,6 +1439,17 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             );
             return ['success'=>true];
         } catch (\Exception $e) {
+            // The buyer has already paid: finish the checkout instead of failing it
+            if ($this->isPaymentCaptured($order)) {
+                $this->keepCapturedOrder(
+                    $order,
+                    $amazonCompleteCheckoutResult['chargeId'] ?? null,
+                    $amazonCompleteCheckoutResult['chargePermissionId'] ?? null,
+                    $e
+                );
+                return ['success' => true];
+            }
+
             $this->closeChargePermission($amazonSessionId, $order, $e);
 
             $session = $this->amazonAdapter->getCheckoutSession(
@@ -1458,6 +1469,52 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 $logEntryDetails
             );
         }
+    }
+
+    /**
+     * Keep the order of a checkout whose payment was captured before a later step failed
+     *
+     * The charge permission stays open, because refunds need it, and the quote of the placed order is not restored,
+     * because it cannot be submitted again. The open invoice is marked as paid when the capture is complete.
+     *
+     * @param OrderInterface $order
+     * @param string|null $chargeId
+     * @param string|null $chargePermissionId
+     * @param \Exception $e
+     * @return void
+     */
+    private function keepCapturedOrder($order, $chargeId, $chargePermissionId, \Exception $e)
+    {
+        $this->logger->error(
+            'A checkout step failed after the payment of Order #' . $order->getIncrementId()
+            . ' was captured, the order is kept. Error: ' . $e->getMessage()
+        );
+
+        try {
+            $hasPaidInvoice = false;
+            foreach ($order->getInvoiceCollection() as $invoice) {
+                $hasPaidInvoice = $hasPaidInvoice || $invoice->getState() == Invoice::STATE_PAID;
+            }
+            if ($chargeId && !$hasPaidInvoice && ($this->capturedOrderIds[$order->getId()] ?? '') == 'Captured') {
+                $this->asyncCharge->capture($order, $chargeId, $order->getGrandTotal());
+            }
+        } catch (\Exception $captureException) {
+            $this->logger->error(
+                'Unable to mark the invoice of Order #' . $order->getIncrementId() . ' as paid: '
+                . $captureException->getMessage()
+            );
+        }
+
+        if ($chargePermissionId) {
+            $order->getPayment()->setAdditionalInformation('charge_permission_id', $chargePermissionId);
+        }
+        $order->addStatusHistoryComment(
+            __(
+                'A checkout step failed after the payment was captured, so the order was kept. Error: %1',
+                $e->getMessage()
+            )
+        );
+        $order->save();
     }
 
     /**
