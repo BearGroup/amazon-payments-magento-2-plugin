@@ -786,17 +786,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      */
     private function isPaymentCaptured($order)
     {
-        if (isset($this->capturedOrderIds[$order->getId()])) {
-            return true;
-        }
-
-        foreach ($order->getInvoiceCollection() as $invoice) {
-            if ($invoice->getState() == Invoice::STATE_PAID) {
-                return true;
-            }
-        }
-
-        return false;
+        return isset($this->capturedOrderIds[$order->getId()]) || $this->hasPaidInvoice($order);
     }
 
     /**
@@ -1462,6 +1452,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             // The buyer has already paid: finish the checkout instead of failing it
             if ($this->isPaymentCaptured($order)) {
                 $this->keepCapturedOrder(
+                    $amazonSessionId,
                     $order,
                     $amazonCompleteCheckoutResult['chargeId'] ?? null,
                     $amazonCompleteCheckoutResult['chargePermissionId'] ?? null,
@@ -1495,34 +1486,42 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * Keep the order of a checkout whose payment was captured before a later step failed
      *
      * The charge permission stays open, because refunds need it, and the quote of the placed order is not restored,
-     * because it cannot be submitted again. The open invoice is marked as paid when the capture is complete.
+     * because it cannot be submitted again. The open invoice is marked as paid when the capture is complete; if
+     * that cannot be done now, the charge is queued and the async process marks it paid later.
      *
+     * @param string $amazonSessionId
      * @param OrderInterface $order
      * @param string|null $chargeId
      * @param string|null $chargePermissionId
      * @param \Exception $e
      * @return void
      */
-    private function keepCapturedOrder($order, $chargeId, $chargePermissionId, \Exception $e)
+    private function keepCapturedOrder($amazonSessionId, $order, $chargeId, $chargePermissionId, \Exception $e)
     {
         $this->logger->error(
             'A checkout step failed after the payment of Order #' . $order->getIncrementId()
             . ' was captured, the order is kept. Error: ' . $e->getMessage()
         );
 
+        $invoicePaid = false;
         try {
-            $hasPaidInvoice = false;
-            foreach ($order->getInvoiceCollection() as $invoice) {
-                $hasPaidInvoice = $hasPaidInvoice || $invoice->getState() == Invoice::STATE_PAID;
-            }
-            if ($chargeId && !$hasPaidInvoice && ($this->capturedOrderIds[$order->getId()] ?? '') == 'Captured') {
+            $invoicePaid = $this->hasPaidInvoice($order);
+            if ($chargeId && !$invoicePaid && ($this->capturedOrderIds[$order->getId()] ?? '') == 'Captured') {
                 $this->asyncCharge->capture($order, $chargeId, $order->getGrandTotal());
+                $invoicePaid = $this->hasPaidInvoice($order);
             }
         } catch (\Exception $captureException) {
             $this->logger->error(
                 'Unable to mark the invoice of Order #' . $order->getIncrementId() . ' as paid: '
                 . $captureException->getMessage()
             );
+        }
+
+        // Runs after the capture above: Charge::capture() finds the invoice by its transaction ID, and once that is
+        // the charge ID it would work on a separate copy of the order.
+        if ($chargeId) {
+            $captureComplete = ($this->capturedOrderIds[$order->getId()] ?? '') == 'Captured';
+            $this->saveChargeTransaction($amazonSessionId, $order, $chargeId, $captureComplete, !$invoicePaid);
         }
 
         if ($chargePermissionId) {
@@ -1535,6 +1534,82 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             )
         );
         $order->save();
+    }
+
+    /**
+     * Store the charge ID on the checkout session transaction, as a completed checkout does
+     *
+     * Notifications and the async process find the order by the charge ID. When the invoice is still unpaid, the
+     * charge is also queued, so the async process marks the invoice paid once the capture is complete.
+     *
+     * @param string $amazonSessionId
+     * @param OrderInterface $order
+     * @param string $chargeId
+     * @param bool $captureComplete
+     * @param bool $queueCharge
+     * @return void
+     */
+    private function saveChargeTransaction($amazonSessionId, $order, $chargeId, $captureComplete, $queueCharge)
+    {
+        try {
+            if (!$this->getTransaction($chargeId)) {
+                $transaction = $this->getTransaction($amazonSessionId);
+                if ($transaction) {
+                    // as for a completed checkout: the transaction is closed once the charge is captured
+                    if ($captureComplete) {
+                        $transaction->setIsClosed(true);
+                    }
+                    $this->updateTransactionId($chargeId, $order->getPayment(), $transaction);
+                }
+            }
+        } catch (\Exception $transactionException) {
+            $this->logger->error(
+                'Unable to store charge ' . $chargeId . ' on Order #' . $order->getIncrementId() . ': '
+                . $transactionException->getMessage()
+            );
+        }
+
+        if (!$queueCharge) {
+            return;
+        }
+
+        try {
+            // the async process finds the order by the charge ID, so queue the charge only when that works
+            if ($this->getTransaction($chargeId)) {
+                $this->asyncManagement->queuePendingAuthorization($chargeId);
+                $this->logger->error(
+                    'The invoice of Order #' . $order->getIncrementId() . ' is not paid yet, charge ' . $chargeId
+                    . ' is queued for the async process'
+                );
+            } else {
+                $this->logger->error(
+                    'The invoice of Order #' . $order->getIncrementId() . ' is not paid and charge ' . $chargeId
+                    . ' could not be linked to the order: mark the invoice paid manually'
+                );
+            }
+        } catch (\Exception $queueException) {
+            $this->logger->error(
+                'Unable to queue charge ' . $chargeId . ' of Order #' . $order->getIncrementId() . ': '
+                . $queueException->getMessage()
+            );
+        }
+    }
+
+    /**
+     * Whether the order has a paid invoice
+     *
+     * @param OrderInterface $order
+     * @return bool
+     */
+    private function hasPaidInvoice($order)
+    {
+        foreach ($order->getInvoiceCollection() as $invoice) {
+            if ($invoice->getState() == Invoice::STATE_PAID) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
