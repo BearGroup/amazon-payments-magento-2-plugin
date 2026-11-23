@@ -1512,6 +1512,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             . ' was captured, the order is kept. Error: ' . $e->getMessage()
         );
 
+        // The failed step may have left changes on the order that were never saved, such as an invoice and paid totals
+        // that Invoice::pay() set before an observer or a save failed. Continue with the order as it is stored, so
+        // that those changes are neither taken for the real state nor saved.
+        $order = $this->loadStoredOrder($order);
+
         $invoicePaid = false;
         try {
             $invoicePaid = $this->hasPaidInvoice($order);
@@ -1524,6 +1529,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 'Unable to mark the invoice of Order #' . $order->getIncrementId() . ' as paid: '
                 . $captureException->getMessage()
             );
+            // the failed capture may have left unsaved changes as well
+            $order = $this->loadStoredOrder($order);
         }
 
         // Runs after the capture above: Charge::capture() finds the invoice by its transaction ID, and once that is
@@ -1550,6 +1557,33 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 . $saveException->getMessage()
             );
         }
+    }
+
+    /**
+     * Load a new instance of the order as it is stored, without the unsaved changes of the given instance
+     *
+     * The order repository returns the instance it already holds, so the order is loaded through a collection.
+     *
+     * @param OrderInterface $order
+     * @return OrderInterface
+     */
+    private function loadStoredOrder($order)
+    {
+        try {
+            $storedOrder = $this->orderCollectionFactory->create()
+                ->addFieldToFilter('entity_id', $order->getId())
+                ->getFirstItem();
+            if ($storedOrder->getId()) {
+                return $storedOrder;
+            }
+            $this->logger->error('Unable to reload Order #' . $order->getIncrementId() . ': not found');
+        } catch (\Exception $loadException) {
+            $this->logger->error(
+                'Unable to reload Order #' . $order->getIncrementId() . ': ' . $loadException->getMessage()
+            );
+        }
+
+        return $order;
     }
 
     /**
