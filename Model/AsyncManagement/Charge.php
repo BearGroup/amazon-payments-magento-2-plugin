@@ -145,13 +145,37 @@ class Charge extends AbstractOperation
 
         if ($order) {
             $invoice = $this->loadInvoice($chargeId, $order);
-            if ($invoice && $invoice->getState() != Order\Invoice::STATE_OPEN) {
+            if ($invoice && $invoice->getState() == Invoice::STATE_PAID) {
                 // Could happen with duplicate IPN messages, don't want to try to capture unless not invoiced
                 $this->asyncLogger->info('Duplicate IPN received after capture for Order #' . $order->getIncrementId());
                 return true;
             }
 
             $charge = $this->amazonAdapter->getCharge($order->getStoreId(), $chargeId);
+
+            // The invoice of this charge is canceled in Magento. As before, nothing is captured, canceled or declined
+            // for it again. A charge that Amazon captured anyway is reported: the money was taken, the invoice says it
+            // was not, and retrying cannot pay a canceled invoice.
+            if ($invoice && $invoice->getState() == Invoice::STATE_CANCELED) {
+                if (($charge['statusDetails']['state'] ?? '') == 'Captured') {
+                    $this->asyncLogger->error(
+                        'Charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
+                        . ' is captured at Amazon, but its invoice is canceled'
+                    );
+                    $this->reportCaptureNotRecorded(
+                        $order,
+                        $chargeId,
+                        'Invoice canceled, but charge ' . $chargeId . ' was captured at Amazon',
+                        false
+                    );
+                } else {
+                    $this->asyncLogger->info(
+                        'Invoice of charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
+                        . ' is already canceled'
+                    );
+                }
+                return true;
+            }
 
             // Compare Charge State with Order State
             if (isset($charge['statusDetails'])) {
@@ -464,23 +488,49 @@ class Charge extends AbstractOperation
         }
         $this->asyncLogger->error($errorMessage . ', charge ' . $chargeId . ' stays pending and will be retried');
 
-        // The row is retried until the invoice is paid: comment on the order and notify the admin only once
-        if (!$this->hasStatusHistoryComment($order, $errorMessage)) {
-            $order->addStatusHistoryComment($errorMessage);
-            $order->save();
-            $this->notifier->addNotice(
-                __('Amazon Pay capture not recorded'),
-                __(
-                    'Order #%1 was captured at Amazon (charge %2), but its invoice could not be marked paid. '
-                    . 'Check the invoice; the charge is retried until the invoice is paid.',
-                    $order->getIncrementId(),
-                    $chargeId
-                ),
-                $this->urlBuilder->getUrl('sales/order/view', ['order_id' => $order->getId()])
-            );
-        }
+        // the row is retried until the invoice is paid
+        $this->reportCaptureNotRecorded($order, $chargeId, $errorMessage, true);
 
         return false;
+    }
+
+    /**
+     * Comment on the order and notify the admin that a captured charge is not recorded as paid, only once per order
+     *
+     * @param \Magento\Sales\Model\Order $order
+     * @param string $chargeId
+     * @param string $comment
+     * @param bool $retried whether the async process keeps retrying the charge
+     * @return void
+     */
+    private function reportCaptureNotRecorded($order, $chargeId, $comment, $retried)
+    {
+        if ($this->hasStatusHistoryComment($order, $comment)) {
+            return;
+        }
+
+        $order->addStatusHistoryComment($comment);
+        $order->save();
+        if ($retried) {
+            $description = __(
+                'Order #%1 was captured at Amazon (charge %2), but its invoice could not be marked paid. '
+                . 'Check the invoice; the charge is retried until the invoice is paid.',
+                $order->getIncrementId(),
+                $chargeId
+            );
+        } else {
+            $description = __(
+                'Order #%1 was captured at Amazon (charge %2), but its invoice is canceled in Magento. '
+                . 'Check the order; this is not retried.',
+                $order->getIncrementId(),
+                $chargeId
+            );
+        }
+        $this->notifier->addNotice(
+            __('Amazon Pay capture not recorded'),
+            $description,
+            $this->urlBuilder->getUrl('sales/order/view', ['order_id' => $order->getId()])
+        );
     }
 
     /**
