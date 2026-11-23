@@ -189,8 +189,8 @@ class Charge extends AbstractOperation
                         break;
                     case 'Captured':
                         $this->setProcessing($order);
-                        $this->capture($order, $chargeId, $charge['captureAmount']['amount']);
-                        $complete = true;
+                        // stays pending when the invoice could not be marked paid, so it is retried
+                        $complete = $this->capture($order, $chargeId, $charge['captureAmount']['amount']);
                         break;
                     default:
                         break;
@@ -385,10 +385,13 @@ class Charge extends AbstractOperation
     /**
      * Capture charge
      *
+     * Returns false when the invoice is still unpaid and cannot be marked paid, so that an async row stays pending and
+     * is retried. An invoice that is already paid counts as done.
+     *
      * @param \Magento\Sales\Model\Order|\Magento\Sales\Api\Data\OrderInterface $order
      * @param string $chargeId
      * @param float $chargeAmount
-     * @return void
+     * @return bool whether the invoice is paid
      */
     public function capture($order, $chargeId, $chargeAmount)
     {
@@ -404,6 +407,10 @@ class Charge extends AbstractOperation
         // Finally, load from the order if all else fails
         if (!$invoice) {
             $invoice = $order->getInvoiceCollection()->getFirstItem();
+            // an order without invoices gives an empty invoice object, which cannot be checked or captured
+            if (!$invoice->getId()) {
+                $invoice = null;
+            }
         }
 
         if ($invoice
@@ -436,18 +443,61 @@ class Charge extends AbstractOperation
             $transaction->setIsClosed(true);
             $order->save();
             $this->asyncLogger->info('Captured Order #' . $order->getIncrementId());
-        } else {
-            if (!$invoice) {
-                $errorMessage = 'Cannot create invoice for Order #' . $order->getIncrementId();
-            } else {
-                $errorMessage = 'Invoice cannot be captured -'
-                                . ' Order #' . $order->getIncrementId()
-                                . ' Order Status: ' . $invoice->getOrder()->getStatus();
-            }
+            return true;
+        }
 
-            $this->asyncLogger->error($errorMessage);
+        if ($invoice && $invoice->getState() == Invoice::STATE_PAID) {
+            // nothing left to record, for example the invoice was marked paid by hand
+            $this->asyncLogger->info(
+                'Charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
+                . ' is captured, the invoice is already paid'
+            );
+            return true;
+        }
+
+        if (!$invoice) {
+            $errorMessage = 'Cannot create invoice for Order #' . $order->getIncrementId();
+        } else {
+            $errorMessage = 'Invoice cannot be captured -'
+                            . ' Order #' . $order->getIncrementId()
+                            . ' Order Status: ' . $invoice->getOrder()->getStatus();
+        }
+        $this->asyncLogger->error($errorMessage . ', charge ' . $chargeId . ' stays pending and will be retried');
+
+        // The row is retried until the invoice is paid: comment on the order and notify the admin only once
+        if (!$this->hasStatusHistoryComment($order, $errorMessage)) {
             $order->addStatusHistoryComment($errorMessage);
             $order->save();
+            $this->notifier->addNotice(
+                __('Amazon Pay capture not recorded'),
+                __(
+                    'Order #%1 was captured at Amazon (charge %2), but its invoice could not be marked paid. '
+                    . 'Check the invoice; the charge is retried until the invoice is paid.',
+                    $order->getIncrementId(),
+                    $chargeId
+                ),
+                $this->urlBuilder->getUrl('sales/order/view', ['order_id' => $order->getId()])
+            );
         }
+
+        return false;
+    }
+
+    /**
+     * Whether the order already has the given status history comment
+     *
+     * @param \Magento\Sales\Model\Order $order
+     * @param string $comment
+     * @return bool
+     */
+    private function hasStatusHistoryComment($order, $comment)
+    {
+        foreach ($order->getStatusHistoryCollection() as $history) {
+            if ($history->getComment() == $comment) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

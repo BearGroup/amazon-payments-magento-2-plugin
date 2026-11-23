@@ -1400,8 +1400,13 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 }
                 $this->setProcessing($payment, false);
                 // capture and invoice on the Magento side
-                if ($this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC) {
-                    $this->asyncCharge->capture($order, $chargeId, $order->getGrandTotal());
+                if ($this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC
+                    && !$this->asyncCharge->capture($order, $chargeId, $order->getGrandTotal())
+                ) {
+                    // recovered below: the charge is queued so that the invoice is marked paid later
+                    throw new \Magento\Framework\Exception\LocalizedException(
+                        __('The invoice could not be marked paid after the capture')
+                    );
                 }
             }
             $amazonCharge = $this->amazonAdapter->getCharge($order->getStoreId(), $chargeId);
@@ -1434,9 +1439,13 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                     $transaction->setIsClosed(true);
                     $this->setProcessing($payment, false);
 
-                    if ($this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC_THEN_ASYNC) {
-                        // capture and invoice on the Magento side
-                        $this->asyncCharge->capture($order, $chargeId, $quote->getGrandTotal());
+                    // capture and invoice on the Magento side; recovered below when the invoice cannot be marked paid
+                    if ($this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC_THEN_ASYNC
+                        && !$this->asyncCharge->capture($order, $chargeId, $quote->getGrandTotal())
+                    ) {
+                        throw new \Magento\Framework\Exception\LocalizedException(
+                            __('The invoice could not be marked paid after the capture')
+                        );
                     }
                     break;
             }
