@@ -1515,7 +1515,12 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         // The failed step may have left changes on the order that were never saved, such as an invoice and paid totals
         // that Invoice::pay() set before an observer or a save failed. Continue with the order as it is stored, so
         // that those changes are neither taken for the real state nor saved.
-        $order = $this->loadStoredOrder($order);
+        $storedOrder = $this->loadStoredOrder($order);
+        if (!$storedOrder) {
+            $this->logUnrecoveredOrder($order, $chargeId, $chargePermissionId);
+            return;
+        }
+        $order = $storedOrder;
 
         $invoicePaid = false;
         try {
@@ -1530,7 +1535,12 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 . $captureException->getMessage()
             );
             // the failed capture may have left unsaved changes as well
-            $order = $this->loadStoredOrder($order);
+            $storedOrder = $this->loadStoredOrder($order);
+            if (!$storedOrder) {
+                $this->logUnrecoveredOrder($order, $chargeId, $chargePermissionId);
+                return;
+            }
+            $order = $storedOrder;
         }
 
         // Runs after the capture above: Charge::capture() finds the invoice by its transaction ID, and once that is
@@ -1565,7 +1575,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * The order repository returns the instance it already holds, so the order is loaded through a collection.
      *
      * @param OrderInterface $order
-     * @return OrderInterface
+     * @return OrderInterface|null null when the order cannot be loaded
      */
     private function loadStoredOrder($order)
     {
@@ -1583,7 +1593,27 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             );
         }
 
-        return $order;
+        return null;
+    }
+
+    /**
+     * Log an order whose checkout failed after the capture and that could not be reloaded
+     *
+     * Its instance may hold unsaved changes, such as an invoice marked paid whose save failed, so it is neither trusted
+     * nor saved. The order stays as it is stored, with the charge permission open; the invoice has to be checked by
+     * hand.
+     *
+     * @param OrderInterface $order
+     * @param string|null $chargeId
+     * @param string|null $chargePermissionId
+     * @return void
+     */
+    private function logUnrecoveredOrder($order, $chargeId, $chargePermissionId)
+    {
+        $this->logger->error(
+            'Order #' . $order->getIncrementId() . ' was captured but could not be updated after its checkout failed: '
+            . 'check that its invoice is paid. Charge: ' . $chargeId . ', charge permission: ' . $chargePermissionId
+        );
     }
 
     /**
