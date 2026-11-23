@@ -277,7 +277,7 @@ class Charge extends AbstractOperation
                     $otherChargePending = true;
                     continue;
                 }
-                $invoice->cancel();
+                $this->cancelOpenInvoice($invoice);
                 $order->addRelatedObject($invoice);
             }
 
@@ -307,6 +307,26 @@ class Charge extends AbstractOperation
                 );
             }
         }
+    }
+
+    /**
+     * Cancel an open (never paid) invoice
+     *
+     * Invoice::cancel() takes the invoice total off the amounts paid of the payment even though an open invoice
+     * never added to them, which would leave a negative amount paid. Keep those amounts as they were.
+     *
+     * @param Invoice $invoice
+     * @return void
+     */
+    private function cancelOpenInvoice($invoice)
+    {
+        $payment = $invoice->getOrder()->getPayment();
+        $paidAmounts = [];
+        foreach (['amount_paid', 'base_amount_paid', 'shipping_captured', 'base_shipping_captured'] as $field) {
+            $paidAmounts[$field] = $payment->getData($field);
+        }
+        $invoice->cancel();
+        $payment->addData($paidAmounts);
     }
 
     /**

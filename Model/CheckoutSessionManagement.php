@@ -724,7 +724,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             if (!$invoice->canCancel()) {
                 continue;
             }
-            $invoice->cancel();
+            $this->cancelOpenInvoice($invoice);
             // the order save does not cascade to invoices, so register it to be saved with the order
             $order->addRelatedObject($invoice);
         }
@@ -753,6 +753,26 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         if ($this->subscriptionManager->hasSubscription($quote)) {
             $this->subscriptionManager->cancel($order);
         }
+    }
+
+    /**
+     * Cancel an open (never paid) invoice
+     *
+     * Invoice::cancel() takes the invoice total off the amounts paid of the payment even though an open invoice
+     * never added to them, which would leave a negative amount paid. Keep those amounts as they were.
+     *
+     * @param Invoice $invoice
+     * @return void
+     */
+    private function cancelOpenInvoice($invoice)
+    {
+        $payment = $invoice->getOrder()->getPayment();
+        $paidAmounts = [];
+        foreach (['amount_paid', 'base_amount_paid', 'shipping_captured', 'base_shipping_captured'] as $field) {
+            $paidAmounts[$field] = $payment->getData($field);
+        }
+        $invoice->cancel();
+        $payment->addData($paidAmounts);
     }
 
     /**
