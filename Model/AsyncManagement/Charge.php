@@ -155,9 +155,11 @@ class Charge extends AbstractOperation
 
             // The invoice of this charge is canceled in Magento. As before, nothing is captured, canceled or declined
             // for it again. A charge that Amazon captured anyway is reported: the money was taken, the invoice says it
-            // was not, and retrying cannot pay a canceled invoice.
+            // was not, and retrying cannot pay a canceled invoice. The row is complete only once the charge has a final
+            // state; while it is in progress, or its state could not be read, it stays pending and is checked again.
             if ($invoice && $invoice->getState() == Invoice::STATE_CANCELED) {
-                if (($charge['statusDetails']['state'] ?? '') == 'Captured') {
+                $chargeState = $charge['statusDetails']['state'] ?? '';
+                if ($chargeState == 'Captured') {
                     $this->asyncLogger->error(
                         'Charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
                         . ' is captured at Amazon, but its invoice is canceled'
@@ -168,13 +170,20 @@ class Charge extends AbstractOperation
                         'Invoice canceled, but charge ' . $chargeId . ' was captured at Amazon',
                         false
                     );
-                } else {
+                    return true;
+                }
+                if (in_array($chargeState, ['Canceled', 'Declined', 'Authorized'])) {
                     $this->asyncLogger->info(
                         'Invoice of charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
-                        . ' is already canceled'
+                        . ' is already canceled, charge state: ' . $chargeState
                     );
+                    return true;
                 }
-                return true;
+                $this->asyncLogger->info(
+                    'Invoice of charge ' . $chargeId . ' of Order #' . $order->getIncrementId() . ' is canceled, '
+                    . 'charge state: ' . ($chargeState ?: 'unknown') . ', checked again later'
+                );
+                return false;
             }
 
             // Compare Charge State with Order State
