@@ -858,7 +858,14 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $result['success'] = true;
 
         } catch (\Exception $e) {
-            if (isset($order)) {
+            if (isset($order) && $this->isPaymentCaptured($order)) {
+                // The buyer has already paid: keep the charge permission, because refunds need it, and do not put
+                // the quote of the placed order back in the cart, because it cannot be submitted again
+                $this->logger->error(
+                    'Checkout of Order #' . $order->getIncrementId() . ' failed after the payment was captured, '
+                    . 'the order is kept. Error: ' . $e->getMessage()
+                );
+            } elseif (isset($order)) {
                 $this->closeChargePermission($amazonSessionId, $order, $e);
                 $session = $this->getAmazonSession($amazonSessionId);
                 $cancelledMessage = $this->getCanceledMessage($session);
@@ -1489,6 +1496,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * because it cannot be submitted again. The open invoice is marked as paid when the capture is complete; if
      * that cannot be done now, the charge is queued and the async process marks it paid later.
      *
+     * Nothing here throws: the buyer has paid, so the checkout must finish.
+     *
      * @param string $amazonSessionId
      * @param OrderInterface $order
      * @param string|null $chargeId
@@ -1524,16 +1533,23 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             $this->saveChargeTransaction($amazonSessionId, $order, $chargeId, $captureComplete, !$invoicePaid);
         }
 
-        if ($chargePermissionId) {
-            $order->getPayment()->setAdditionalInformation('charge_permission_id', $chargePermissionId);
+        try {
+            if ($chargePermissionId) {
+                $order->getPayment()->setAdditionalInformation('charge_permission_id', $chargePermissionId);
+            }
+            $order->addStatusHistoryComment(
+                __(
+                    'A checkout step failed after the payment was captured, so the order was kept. Error: %1',
+                    $e->getMessage()
+                )
+            );
+            $order->save();
+        } catch (\Exception $saveException) {
+            $this->logger->error(
+                'Unable to save Order #' . $order->getIncrementId() . ' after its checkout failed: '
+                . $saveException->getMessage()
+            );
         }
-        $order->addStatusHistoryComment(
-            __(
-                'A checkout step failed after the payment was captured, so the order was kept. Error: %1',
-                $e->getMessage()
-            )
-        );
-        $order->save();
     }
 
     /**
