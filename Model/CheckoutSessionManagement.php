@@ -25,6 +25,8 @@ use Amazon\Pay\Helper\Customer as CustomerHelper;
 use Amazon\Pay\Model\Customer\CompositeMatcher as Matcher;
 use Amazon\Pay\Api\Data\AmazonCustomerInterface;
 use Amazon\Pay\Model\Exception\OrderFailureException;
+use Amazon\Pay\Model\Invoice\OpenInvoiceCanceller;
+use Magento\Framework\App\ObjectManager;
 use Magento\Quote\Api\Data\CartInterface;
 use Magento\Framework\Webapi\Exception as WebapiException;
 use Magento\Sales\Api\Data\OrderInterface;
@@ -237,6 +239,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     private $updateCouponUsages;
 
     /**
+     * @var OpenInvoiceCanceller
+     */
+    private $openInvoiceCanceller;
+
+    /**
      * IDs of the orders whose charge was captured at Amazon in this request
      *
      * @var bool[]
@@ -281,6 +288,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * @param Session $session
      * @param Translate $translationRenderer
      * @param UpdateCouponUsages $updateCouponUsages
+     * @param OpenInvoiceCanceller|null $openInvoiceCanceller
      */
     public function __construct(
         \Magento\Store\Model\StoreManagerInterface $storeManager,
@@ -317,7 +325,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         \Amazon\Pay\Logger\Logger $logger,
         Session $session,
         Translate $translationRenderer,
-        UpdateCouponUsages $updateCouponUsages
+        UpdateCouponUsages $updateCouponUsages,
+        ?OpenInvoiceCanceller $openInvoiceCanceller = null
     ) {
         $this->storeManager = $storeManager;
         $this->quoteIdMaskFactory = $quoteIdMaskFactory;
@@ -354,6 +363,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         $this->session = $session;
         $this->translationRenderer = $translationRenderer;
         $this->updateCouponUsages = $updateCouponUsages;
+        $this->openInvoiceCanceller = $openInvoiceCanceller
+            ?: ObjectManager::getInstance()->get(OpenInvoiceCanceller::class);
     }
 
     /**
@@ -724,7 +735,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             if (!$invoice->canCancel()) {
                 continue;
             }
-            $this->cancelOpenInvoice($invoice);
+            $this->openInvoiceCanceller->cancel($invoice);
             // the order save does not cascade to invoices, so register it to be saved with the order
             $order->addRelatedObject($invoice);
         }
@@ -753,26 +764,6 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         if ($this->subscriptionManager->hasSubscription($quote)) {
             $this->subscriptionManager->cancel($order);
         }
-    }
-
-    /**
-     * Cancel an open (never paid) invoice
-     *
-     * Invoice::cancel() takes the invoice total off the amounts paid of the payment even though an open invoice
-     * never added to them, which would leave a negative amount paid. Keep those amounts as they were.
-     *
-     * @param Invoice $invoice
-     * @return void
-     */
-    private function cancelOpenInvoice($invoice)
-    {
-        $payment = $invoice->getOrder()->getPayment();
-        $paidAmounts = [];
-        foreach (['amount_paid', 'base_amount_paid', 'shipping_captured', 'base_shipping_captured'] as $field) {
-            $paidAmounts[$field] = $payment->getData($field);
-        }
-        $invoice->cancel();
-        $payment->addData($paidAmounts);
     }
 
     /**

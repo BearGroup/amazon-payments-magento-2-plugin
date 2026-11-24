@@ -17,6 +17,8 @@
 namespace Amazon\Pay\Model\AsyncManagement;
 
 use Amazon\Pay\Model\Config\Source\PaymentAction;
+use Amazon\Pay\Model\Invoice\OpenInvoiceCanceller;
+use Magento\Framework\App\ObjectManager;
 use Magento\Sales\Api\Data\TransactionInterface as Transaction;
 use Magento\Sales\Api\Data\InvoiceInterface;
 use Magento\Sales\Api\Data\OrderInterface;
@@ -73,6 +75,11 @@ class Charge extends AbstractOperation
     private $eventManager;
 
     /**
+     * @var OpenInvoiceCanceller
+     */
+    private $openInvoiceCanceller;
+
+    /**
      * Charge constructor.
      *
      * @param \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder
@@ -87,6 +94,7 @@ class Charge extends AbstractOperation
      * @param \Magento\Backend\Model\UrlInterface $urlBuilder
      * @param \Amazon\Pay\Model\AmazonConfig $amazonConfig
      * @param \Magento\Framework\Event\ManagerInterface $eventManager
+     * @param OpenInvoiceCanceller|null $openInvoiceCanceller
      */
     public function __construct(
         \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder,
@@ -100,7 +108,8 @@ class Charge extends AbstractOperation
         \Magento\Framework\Notification\NotifierInterface $notifier,
         \Magento\Backend\Model\UrlInterface $urlBuilder,
         \Amazon\Pay\Model\AmazonConfig $amazonConfig,
-        \Magento\Framework\Event\ManagerInterface $eventManager
+        \Magento\Framework\Event\ManagerInterface $eventManager,
+        ?OpenInvoiceCanceller $openInvoiceCanceller = null
     ) {
         parent::__construct($orderRepository, $transactionRepository, $searchCriteriaBuilder);
         $this->amazonAdapter = $amazonAdapter;
@@ -112,6 +121,8 @@ class Charge extends AbstractOperation
         $this->urlBuilder = $urlBuilder;
         $this->amazonConfig = $amazonConfig;
         $this->eventManager = $eventManager;
+        $this->openInvoiceCanceller = $openInvoiceCanceller
+            ?: ObjectManager::getInstance()->get(OpenInvoiceCanceller::class);
     }
 
     /**
@@ -310,7 +321,7 @@ class Charge extends AbstractOperation
                     $otherChargePending = true;
                     continue;
                 }
-                $this->cancelOpenInvoice($invoice);
+                $this->openInvoiceCanceller->cancel($invoice);
                 $order->addRelatedObject($invoice);
             }
 
@@ -340,26 +351,6 @@ class Charge extends AbstractOperation
                 );
             }
         }
-    }
-
-    /**
-     * Cancel an open (never paid) invoice
-     *
-     * Invoice::cancel() takes the invoice total off the amounts paid of the payment even though an open invoice
-     * never added to them, which would leave a negative amount paid. Keep those amounts as they were.
-     *
-     * @param Invoice $invoice
-     * @return void
-     */
-    private function cancelOpenInvoice($invoice)
-    {
-        $payment = $invoice->getOrder()->getPayment();
-        $paidAmounts = [];
-        foreach (['amount_paid', 'base_amount_paid', 'shipping_captured', 'base_shipping_captured'] as $field) {
-            $paidAmounts[$field] = $payment->getData($field);
-        }
-        $invoice->cancel();
-        $payment->addData($paidAmounts);
     }
 
     /**
