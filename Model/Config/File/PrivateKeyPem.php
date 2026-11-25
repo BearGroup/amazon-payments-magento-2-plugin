@@ -90,7 +90,9 @@ class PrivateKeyPem extends \Magento\Config\Model\Config\Backend\File
                 throw new \Magento\Framework\Exception\LocalizedException(__('%1', $e->getMessage()));
             }
         } else {
+            // no file uploaded: keep the stored key; saving here would create an empty key at this scope
             $this->unsValue();
+            $this->_dataSaveAllowed = false;
         }
 
         return $this;
