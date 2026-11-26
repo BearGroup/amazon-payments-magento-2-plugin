@@ -49,6 +49,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
 {
     protected const GENERIC_COMPLETE_CHECKOUT_ERROR_MESSAGE = 'Unable to complete Amazon Pay checkout.';
     protected const ADDRESS_CHANGED_CHECKOUT_ERROR_MESSAGE = 'Shipping address mismatch.';
+    private const CAPTURE_STATE_UNKNOWN = 'Unknown';
 
     /**
      * @var \Magento\Store\Model\StoreManagerInterface
@@ -244,11 +245,18 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     private $openInvoiceCanceller;
 
     /**
-     * IDs of the orders whose charge was captured at Amazon in this request
+     * Capture state of the orders whose charge was or may have been captured at Amazon in this request, by order ID
      *
-     * @var bool[]
+     * The state is Captured, CaptureInitiated, or CAPTURE_STATE_UNKNOWN when the capture gave no answer.
+     *
+     * @var string[]
      */
     private $capturedOrderIds = [];
+
+    /**
+     * @var \Magento\Framework\Notification\NotifierInterface
+     */
+    private $notifier;
 
     /**
      * CheckoutSessionManagement constructor.
@@ -289,6 +297,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      * @param Translate $translationRenderer
      * @param UpdateCouponUsages $updateCouponUsages
      * @param OpenInvoiceCanceller|null $openInvoiceCanceller
+     * @param \Magento\Framework\Notification\NotifierInterface|null $notifier
      */
     public function __construct(
         \Magento\Store\Model\StoreManagerInterface $storeManager,
@@ -326,7 +335,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         Session $session,
         Translate $translationRenderer,
         UpdateCouponUsages $updateCouponUsages,
-        ?OpenInvoiceCanceller $openInvoiceCanceller = null
+        ?OpenInvoiceCanceller $openInvoiceCanceller = null,
+        ?\Magento\Framework\Notification\NotifierInterface $notifier = null
     ) {
         $this->storeManager = $storeManager;
         $this->quoteIdMaskFactory = $quoteIdMaskFactory;
@@ -365,6 +375,8 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
         $this->updateCouponUsages = $updateCouponUsages;
         $this->openInvoiceCanceller = $openInvoiceCanceller
             ?: ObjectManager::getInstance()->get(OpenInvoiceCanceller::class);
+        $this->notifier = $notifier
+            ?: ObjectManager::getInstance()->get(\Magento\Framework\Notification\NotifierInterface::class);
     }
 
     /**
@@ -653,6 +665,99 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     }
 
     /**
+     * Get the state of the charge after a capture
+     *
+     * A final state read from the charge is used. Otherwise the answer to the capture is used when there is one,
+     * because a charge that is read right after the capture can still show the state from before the capture.
+     *
+     * @param array $amazonCharge
+     * @param string $captureState state from the capture answer; empty when there was no capture or no answer
+     * @return string empty when the state is not known
+     */
+    private function getChargeStateAfterCapture($amazonCharge, $captureState)
+    {
+        $chargeState = $amazonCharge['statusDetails']['state'] ?? '';
+        if ($captureState && !in_array($chargeState, ['Captured', 'Declined', 'Canceled'])) {
+            return $captureState;
+        }
+
+        return $chargeState;
+    }
+
+    /**
+     * Keep the order in payment review until the capture has a final state; no invoice is paid
+     *
+     * @param Payment $payment
+     * @param Transaction $transaction
+     * @return void
+     */
+    private function setCapturePending($payment, $transaction)
+    {
+        $payment->setIsTransactionClosed(false);
+        $this->setPending($payment);
+        $transaction->setIsClosed(false);
+    }
+
+    /**
+     * Queue a charge whose capture has no final state yet
+     *
+     * This runs as the last step of a checkout that did not fail, so that a canceled order is never queued. The async
+     * process marks the invoice paid when Amazon reports the charge as captured, cancels the order when the charge is
+     * declined, and captures an authorized charge again.
+     *
+     * @param OrderInterface $order
+     * @param string $chargeId
+     * @param string $chargeState
+     * @return void
+     */
+    private function queueUnfinishedCapture($order, $chargeId, $chargeState)
+    {
+        if ($chargeState != 'CaptureInitiated') {
+            $this->logger->error(
+                'Amazon did not confirm the capture of charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
+                . ' (charge state: ' . ($chargeState ?: 'unknown') . '). The order stays in payment review and the'
+                . ' charge is queued for the async process'
+            );
+            $order->addStatusHistoryComment(
+                __(
+                    'Amazon did not confirm the capture of charge %1 (charge state: %2). The order stays in payment'
+                    . ' review until the async process gets the final state of the charge.',
+                    $chargeId,
+                    $chargeState ?: __('unknown')
+                )
+            );
+            $this->orderRepository->save($order);
+            $this->notifyAdmin(
+                __('Amazon Pay capture not confirmed'),
+                __(
+                    'Amazon did not confirm the capture of charge %1 of Order #%2. The order stays in payment'
+                    . ' review and the async process checks the charge again. If the order then goes to processing'
+                    . ' without a paid invoice, the payment is only authorized: capture it before you ship the order.',
+                    $chargeId,
+                    $order->getIncrementId()
+                )
+            );
+        }
+        $this->asyncManagement->queuePendingAuthorization($chargeId);
+    }
+
+    /**
+     * Add a notice to the admin inbox; a failure is only logged
+     *
+     * @param \Magento\Framework\Phrase|string $title
+     * @param \Magento\Framework\Phrase|string $description
+     * @return void
+     */
+    private function notifyAdmin($title, $description)
+    {
+        try {
+            $this->notifier->addNotice($title, $description);
+        } catch (\Exception $e) {
+            $this->logger->error('Unable to add the admin notice "' . $title . '": ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Set order as processing
      *
      * @param Payment $payment
@@ -767,10 +872,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     }
 
     /**
-     * Whether the payment of the order was captured
+     * Whether the payment of the order was captured, or may have been captured
      *
      * The invoice is marked as paid only after the capture at Amazon, so a capture made in this request counts
-     * even while the invoice is still open.
+     * even while the invoice is still open. So does a capture that Amazon started but has not finished, and a
+     * capture that gave no answer, because the money may be taken.
      *
      * @param OrderInterface $order
      * @return bool
@@ -853,7 +959,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 // The buyer has already paid: keep the charge permission, because refunds need it, and do not put
                 // the quote of the placed order back in the cart, because it cannot be submitted again
                 $this->logger->error(
-                    'Checkout of Order #' . $order->getIncrementId() . ' failed after the payment was captured, '
+                    'Checkout of Order #' . $order->getIncrementId() . ' failed after the capture was sent to Amazon, '
                     . 'the order is kept. Error: ' . $e->getMessage()
                 );
             } elseif (isset($order)) {
@@ -1374,43 +1480,71 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 $order->getStoreId()
             );
 
+            $authorizationMode = $this->amazonConfig->getAuthorizationMode();
+            $captureAttempted = false;
+            $captureState = '';
+            $invoicePaid = false;
+            $unfinishedCaptureState = null;
             if ($completeCheckoutStatus != '202' && $paymentAction == PaymentAction::AUTHORIZE_AND_CAPTURE) {
-                // capture on Amazon Pay
-                $captureResponse = $this->amazonAdapter->captureCharge(
-                    $order->getStoreId(),
-                    $chargeId,
-                    $order->getGrandTotal(),
-                    $order->getOrderCurrencyCode()
-                );
+                $captureAttempted = true;
+                // capture on Amazon Pay; an error answer is returned, not thrown, and has no charge state
+                try {
+                    $captureResponse = $this->amazonAdapter->captureCharge(
+                        $order->getStoreId(),
+                        $chargeId,
+                        $order->getGrandTotal(),
+                        $order->getOrderCurrencyCode()
+                    );
+                    if (in_array($captureResponse['status'] ?? null, [200, 201])) {
+                        $captureState = $captureResponse['statusDetails']['state'] ?? '';
+                    }
+                } catch (\Exception $captureException) {
+                    // no answer: the capture may still have been made, so the order is kept like a captured one
+                    // until the charge state read below shows otherwise
+                    $this->capturedOrderIds[$order->getId()] = self::CAPTURE_STATE_UNKNOWN;
+                    $this->logger->error(
+                        'Capture of charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
+                        . ' gave no answer: ' . $captureException->getMessage()
+                    );
+                }
                 // remember the capture: if a later step fails, the order must not be canceled
-                $captureState = $captureResponse['statusDetails']['state'] ?? '';
-                if (in_array($captureResponse['status'] ?? null, [200, 201])
-                    && in_array($captureState, ['Captured', 'CaptureInitiated'])
-                ) {
+                if (in_array($captureState, ['Captured', 'CaptureInitiated'])) {
                     $this->capturedOrderIds[$order->getId()] = $captureState;
                 }
-                $this->setProcessing($payment, false);
-                // capture and invoice on the Magento side
-                if ($this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC
-                    && !$this->asyncCharge->capture($order, $chargeId, $order->getGrandTotal())
-                ) {
-                    // recovered below: the charge is queued so that the invoice is marked paid later
-                    throw new \Magento\Framework\Exception\LocalizedException(
-                        __('The invoice could not be marked paid after the capture')
-                    );
+                // capture and invoice on the Magento side, only when Amazon confirms that the money is taken
+                if ($captureState == 'Captured' && $authorizationMode == AuthorizationMode::SYNC) {
+                    $this->setProcessing($payment, false);
+                    if (!$this->asyncCharge->capture($order, $chargeId, $order->getGrandTotal())) {
+                        // recovered below: the charge is queued so that the invoice is marked paid later
+                        throw new \Magento\Framework\Exception\LocalizedException(
+                            __('The invoice could not be marked paid after the capture')
+                        );
+                    }
+                    $invoicePaid = true;
                 }
             }
             $amazonCharge = $this->amazonAdapter->getCharge($order->getStoreId(), $chargeId);
+            $chargePermissionId = $amazonCharge['chargePermissionId']
+                ?? $amazonCompleteCheckoutResult['chargePermissionId'];
 
             // @TODO: for recurring, the order incremenet ID needs to be updated on the charge
             //Send merchantReferenceId to Amazon
             $this->amazonAdapter->updateChargePermission(
                 $order->getStoreId(),
-                $amazonCharge['chargePermissionId'],
+                $chargePermissionId,
                 ['merchantReferenceId' => $order->getIncrementId()]
             );
 
-            $chargeState = $amazonCharge['statusDetails']['state'];
+            $chargeState = $this->getChargeStateAfterCapture($amazonCharge, $captureState);
+            if (in_array($chargeState, ['Captured', 'CaptureInitiated'])) {
+                $this->capturedOrderIds[$order->getId()] = $chargeState;
+            } elseif ($chargeState !== '') {
+                // the charge was not captured, for example it is still authorized or it was declined
+                unset($this->capturedOrderIds[$order->getId()]);
+            } elseif ($captureAttempted) {
+                // the capture may have been made: keep the order if a later step fails
+                $this->capturedOrderIds[$order->getId()] = self::CAPTURE_STATE_UNKNOWN;
+            }
 
             switch ($chargeState) {
                 case 'AuthorizationInitiated':
@@ -1420,22 +1554,54 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                     $this->asyncManagement->queuePendingAuthorization($chargeId);
                     break;
                 case 'Authorized':
-                    $this->setProcessing($payment);
-                    if ($this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC_THEN_ASYNC) {
-                        $this->addCaptureComment($payment, $amazonCharge['chargePermissionId']);
+                    if ($captureAttempted) {
+                        // the capture failed: the charge is only authorized, so the invoice must not be paid
+                        $this->setCapturePending($payment, $transaction);
+                        $unfinishedCaptureState = $chargeState;
+                        break;
                     }
+                    $this->setProcessing($payment);
+                    if ($authorizationMode == AuthorizationMode::SYNC_THEN_ASYNC) {
+                        $this->addCaptureComment($payment, $chargePermissionId);
+                    }
+                    break;
+                case 'CaptureInitiated':
+                    // Amazon has not finished the capture and can still decline it
+                    $this->setCapturePending($payment, $transaction);
+                    $unfinishedCaptureState = $chargeState;
                     break;
                 case 'Captured':
                     $payment->setIsTransactionClosed(true);
                     $transaction->setIsClosed(true);
                     $this->setProcessing($payment, false);
 
-                    // capture and invoice on the Magento side; recovered below when the invoice cannot be marked paid
-                    if ($this->amazonConfig->getAuthorizationMode() == AuthorizationMode::SYNC_THEN_ASYNC
+                    // capture and invoice on the Magento side, unless that was done after the capture above;
+                    // recovered below when the invoice cannot be marked paid
+                    if (!$invoicePaid
+                        && in_array($authorizationMode, [AuthorizationMode::SYNC, AuthorizationMode::SYNC_THEN_ASYNC])
                         && !$this->asyncCharge->capture($order, $chargeId, $quote->getGrandTotal())
                     ) {
                         throw new \Magento\Framework\Exception\LocalizedException(
                             __('The invoice could not be marked paid after the capture')
+                        );
+                    }
+                    break;
+                case 'Declined':
+                case 'Canceled':
+                    // no money was taken: the order is canceled below
+                    throw new \Magento\Framework\Exception\LocalizedException(
+                        __('The charge is %1', strtolower($chargeState))
+                    );
+                default:
+                    if ($captureAttempted) {
+                        // the result of the capture is not known, for example because the charge could not be read
+                        $this->setCapturePending($payment, $transaction);
+                        $unfinishedCaptureState = $chargeState;
+                        break;
+                    }
+                    if ($chargeState === '') {
+                        throw new \Magento\Framework\Exception\LocalizedException(
+                            __('The state of charge %1 could not be read', $chargeId)
                         );
                     }
                     break;
@@ -1454,6 +1620,11 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
                 $quote,
                 $order
             );
+
+            // queued last: when a step above fails, the order is canceled or kept below, and is not queued here
+            if ($unfinishedCaptureState !== null) {
+                $this->queueUnfinishedCapture($order, $chargeId, $unfinishedCaptureState);
+            }
             return ['success'=>true];
         } catch (\Exception $e) {
             // The buyer has already paid: finish the checkout instead of failing it
@@ -1490,7 +1661,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     }
 
     /**
-     * Keep the order of a checkout whose payment was captured before a later step failed
+     * Keep the order of a checkout whose payment was captured, or may have been, before a later step failed
      *
      * The charge permission stays open, because refunds need it, and the quote of the placed order is not restored,
      * because it cannot be submitted again. The open invoice is marked as paid when the capture is complete; if
@@ -1508,8 +1679,9 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     private function keepCapturedOrder($amazonSessionId, $order, $chargeId, $chargePermissionId, \Exception $e)
     {
         $this->logger->error(
-            'A checkout step failed after the payment of Order #' . $order->getIncrementId()
-            . ' was captured, the order is kept. Error: ' . $e->getMessage()
+            'A checkout step failed after the capture of Order #' . $order->getIncrementId() . ' was sent to Amazon'
+            . ' (capture state: ' . ($this->capturedOrderIds[$order->getId()] ?? '') . '), the order is kept. Error: '
+            . $e->getMessage()
         );
 
         // The failed step may have left changes on the order that were never saved, such as an invoice and paid totals
@@ -1556,7 +1728,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             }
             $order->addStatusHistoryComment(
                 __(
-                    'A checkout step failed after the payment was captured, so the order was kept. Error: %1',
+                    'A checkout step failed after the capture was sent to Amazon, so the order was kept. Error: %1',
                     $e->getMessage()
                 )
             );
@@ -1597,7 +1769,7 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
     }
 
     /**
-     * Log an order whose checkout failed after the capture and that could not be reloaded
+     * Report an order whose checkout failed after the capture and that could not be reloaded
      *
      * Its instance may hold unsaved changes, such as an invoice marked paid whose save failed, so it is neither trusted
      * nor saved. The order stays as it is stored, with the charge permission open; the invoice has to be checked by
@@ -1610,9 +1782,13 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
      */
     private function logUnrecoveredOrder($order, $chargeId, $chargePermissionId)
     {
-        $this->logger->error(
-            'Order #' . $order->getIncrementId() . ' was captured but could not be updated after its checkout failed: '
-            . 'check that its invoice is paid. Charge: ' . $chargeId . ', charge permission: ' . $chargePermissionId
+        $this->reportUnrecoveredCapture(
+            $order,
+            $chargeId,
+            ($this->capturedOrderIds[$order->getId()] ?? '') == 'Captured',
+            'Order #' . $order->getIncrementId() . ' could not be updated after its checkout failed (capture state: '
+            . ($this->capturedOrderIds[$order->getId()] ?? '') . '). Charge: ' . $chargeId . ', charge permission: '
+            . $chargePermissionId
         );
     }
 
@@ -1658,21 +1834,61 @@ class CheckoutSessionManagement implements \Amazon\Pay\Api\CheckoutSessionManage
             if ($this->getTransaction($chargeId)) {
                 $this->asyncManagement->queuePendingAuthorization($chargeId);
                 $this->logger->error(
-                    'The invoice of Order #' . $order->getIncrementId() . ' is not paid yet, charge ' . $chargeId
+                    'Order #' . $order->getIncrementId() . ' has no paid invoice yet, charge ' . $chargeId
                     . ' is queued for the async process'
                 );
-            } else {
-                $this->logger->error(
-                    'The invoice of Order #' . $order->getIncrementId() . ' is not paid and charge ' . $chargeId
-                    . ' could not be linked to the order: mark the invoice paid manually'
-                );
+                return;
             }
+            $reason = 'charge ' . $chargeId . ' could not be linked to the order';
         } catch (\Exception $queueException) {
+            $reason = 'charge ' . $chargeId . ' could not be queued: ' . $queueException->getMessage();
+        }
+
+        $this->reportUnrecoveredCapture(
+            $order,
+            $chargeId,
+            $captureComplete,
+            'Order #' . $order->getIncrementId() . ' has no paid invoice and ' . $reason
+        );
+    }
+
+    /**
+     * Report a capture that the checkout could not record and that the async process will not check
+     *
+     * The report goes to the log and to the admin inbox. When the capture is complete, the order only needs a paid
+     * invoice. When it is not confirmed, Amazon can still decline it, so the charge has to be checked at Amazon before
+     * the order is shipped.
+     *
+     * @param OrderInterface $order
+     * @param string|null $chargeId
+     * @param bool $captureComplete
+     * @param string $logMessage
+     * @return void
+     */
+    private function reportUnrecoveredCapture($order, $chargeId, $captureComplete, $logMessage)
+    {
+        if ($captureComplete) {
+            $this->logger->error($logMessage . ': make sure that the order has a paid invoice');
+            $description = __(
+                'Order #%1 was captured at Amazon (charge %2), but the checkout could not record the capture. '
+                . 'Make sure that the order has a paid invoice; to create one, use Capture Offline.',
+                $order->getIncrementId(),
+                $chargeId
+            );
+        } else {
             $this->logger->error(
-                'Unable to queue charge ' . $chargeId . ' of Order #' . $order->getIncrementId() . ': '
-                . $queueException->getMessage()
+                $logMessage . ': the capture is not confirmed, check the charge at Amazon before you ship the order'
+            );
+            $description = __(
+                'Amazon did not confirm the capture of Order #%1 (charge %2), and the checkout could not record it. '
+                . 'Check the charge at Amazon before you ship the order: when it is captured, make sure that the '
+                . 'order has a paid invoice (to create one, use Capture Offline); when it is declined, cancel the '
+                . 'order.',
+                $order->getIncrementId(),
+                $chargeId
             );
         }
+        $this->notifyAdmin(__('Amazon Pay capture not recorded'), $description);
     }
 
     /**
