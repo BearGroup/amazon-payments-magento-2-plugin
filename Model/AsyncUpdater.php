@@ -102,6 +102,10 @@ class AsyncUpdater
 
             $async->getResource()->commit();
         } catch (\Exception $e) {
+            $message = 'Unable to process pending ' . $async->getPendingAction() . ' ' . $async->getPendingId()
+                . ', it stays pending and will be retried: ' . $e->getMessage();
+            $this->logger->error($message);
+            $this->asyncLogger->error($message);
             $this->logger->error($e);
             $this->asyncLogger->error($e);
             $async->getResource()->rollBack();

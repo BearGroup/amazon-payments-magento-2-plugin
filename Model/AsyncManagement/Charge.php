@@ -17,12 +17,15 @@
 namespace Amazon\Pay\Model\AsyncManagement;
 
 use Amazon\Pay\Model\Config\Source\PaymentAction;
+use Amazon\Pay\Model\Invoice\OpenInvoiceCanceller;
+use Magento\Framework\App\ObjectManager;
 use Magento\Sales\Api\Data\TransactionInterface as Transaction;
 use Magento\Sales\Api\Data\InvoiceInterface;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Model\Order;
 use Magento\Sales\Model\Order\Invoice;
 use Magento\Framework\Event\ManagerInterface;
+use Magento\Store\Model\ScopeInterface;
 
 class Charge extends AbstractOperation
 {
@@ -72,6 +75,11 @@ class Charge extends AbstractOperation
     private $eventManager;
 
     /**
+     * @var OpenInvoiceCanceller
+     */
+    private $openInvoiceCanceller;
+
+    /**
      * Charge constructor.
      *
      * @param \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder
@@ -86,6 +94,7 @@ class Charge extends AbstractOperation
      * @param \Magento\Backend\Model\UrlInterface $urlBuilder
      * @param \Amazon\Pay\Model\AmazonConfig $amazonConfig
      * @param \Magento\Framework\Event\ManagerInterface $eventManager
+     * @param OpenInvoiceCanceller|null $openInvoiceCanceller
      */
     public function __construct(
         \Magento\Framework\Api\SearchCriteriaBuilder $searchCriteriaBuilder,
@@ -99,7 +108,8 @@ class Charge extends AbstractOperation
         \Magento\Framework\Notification\NotifierInterface $notifier,
         \Magento\Backend\Model\UrlInterface $urlBuilder,
         \Amazon\Pay\Model\AmazonConfig $amazonConfig,
-        \Magento\Framework\Event\ManagerInterface $eventManager
+        \Magento\Framework\Event\ManagerInterface $eventManager,
+        ?OpenInvoiceCanceller $openInvoiceCanceller = null
     ) {
         parent::__construct($orderRepository, $transactionRepository, $searchCriteriaBuilder);
         $this->amazonAdapter = $amazonAdapter;
@@ -111,6 +121,8 @@ class Charge extends AbstractOperation
         $this->urlBuilder = $urlBuilder;
         $this->amazonConfig = $amazonConfig;
         $this->eventManager = $eventManager;
+        $this->openInvoiceCanceller = $openInvoiceCanceller
+            ?: ObjectManager::getInstance()->get(OpenInvoiceCanceller::class);
     }
 
     /**
@@ -144,7 +156,7 @@ class Charge extends AbstractOperation
 
         if ($order) {
             $invoice = $this->loadInvoice($chargeId, $order);
-            if ($invoice && $invoice->getState() != Order\Invoice::STATE_OPEN) {
+            if ($invoice && $invoice->getState() == Invoice::STATE_PAID) {
                 // Could happen with duplicate IPN messages, don't want to try to capture unless not invoiced
                 $this->asyncLogger->info('Duplicate IPN received after capture for Order #' . $order->getIncrementId());
                 return true;
@@ -152,11 +164,47 @@ class Charge extends AbstractOperation
 
             $charge = $this->amazonAdapter->getCharge($order->getStoreId(), $chargeId);
 
+            // The invoice of this charge is canceled in Magento. As before, nothing is captured, canceled or declined
+            // for it again. A charge that Amazon captured anyway is reported: the money was taken, the invoice says it
+            // was not, and retrying cannot pay a canceled invoice. The row is complete only once the charge has a final
+            // state; while it is in progress, or its state could not be read, it stays pending and is checked again.
+            if ($invoice && $invoice->getState() == Invoice::STATE_CANCELED) {
+                $chargeState = $charge['statusDetails']['state'] ?? '';
+                if ($chargeState == 'Captured') {
+                    $this->asyncLogger->error(
+                        'Charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
+                        . ' is captured at Amazon, but its invoice is canceled'
+                    );
+                    $this->reportCaptureNotRecorded(
+                        $order,
+                        $chargeId,
+                        'Invoice canceled, but charge ' . $chargeId . ' was captured at Amazon',
+                        false
+                    );
+                    return true;
+                }
+                if (in_array($chargeState, ['Canceled', 'Declined', 'Authorized'])) {
+                    $this->asyncLogger->info(
+                        'Invoice of charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
+                        . ' is already canceled, charge state: ' . $chargeState
+                    );
+                    return true;
+                }
+                $this->asyncLogger->info(
+                    'Invoice of charge ' . $chargeId . ' of Order #' . $order->getIncrementId() . ' is canceled, '
+                    . 'charge state: ' . ($chargeState ?: 'unknown') . ', checked again later'
+                );
+                return false;
+            }
+
             // Compare Charge State with Order State
             if (isset($charge['statusDetails'])) {
                 $state = $charge['statusDetails']['state'];
-                if ($this->amazonConfig->getPaymentAction() == PaymentAction::AUTHORIZE_AND_CAPTURE &&
-                    $state == 'Authorized') {
+                $paymentAction = $this->amazonConfig->getPaymentAction(
+                    ScopeInterface::SCOPE_STORE,
+                    $order->getStoreId()
+                );
+                if ($paymentAction == PaymentAction::AUTHORIZE_AND_CAPTURE && $state == 'Authorized') {
                     $this->amazonAdapter->captureCharge(
                         $order->getStoreId(),
                         $chargeId,
@@ -176,7 +224,7 @@ class Charge extends AbstractOperation
                         break;
                     case 'Canceled':
                         $this->setProcessing($order);
-                        $this->cancel($order, $charge['statusDetails']);
+                        $this->cancel($order, $charge['statusDetails'], $chargeId);
                         $complete = true;
                         break;
                     case 'Authorized':
@@ -185,8 +233,8 @@ class Charge extends AbstractOperation
                         break;
                     case 'Captured':
                         $this->setProcessing($order);
-                        $this->capture($order, $chargeId, $charge['captureAmount']['amount']);
-                        $complete = true;
+                        // stays pending when the invoice could not be marked paid, so it is retried
+                        $complete = $this->capture($order, $chargeId, $charge['captureAmount']['amount']);
                         break;
                     default:
                         break;
@@ -255,16 +303,74 @@ class Charge extends AbstractOperation
      *
      * @param \Magento\Sales\Model\Order $order
      * @param mixed $detail
+     * @param string|null $chargeId
      * @return void
      */
-    public function cancel($order, $detail)
+    public function cancel($order, $detail, $chargeId = null)
     {
         if (!$order->isCanceled()) {
+            // An order whose items are all invoiced cannot be canceled, and with "Charge on order" the invoice
+            // exists from the moment the order is placed. Cancel the unpaid invoices first, except those that
+            // belong to another charge: that charge may still be captured.
+            $otherChargePending = false;
+            foreach ($order->getInvoiceCollection() as $invoice) {
+                if (!$invoice->canCancel()) {
+                    continue;
+                }
+                if ($this->isInvoiceOfAnotherCharge($invoice, $chargeId)) {
+                    $otherChargePending = true;
+                    continue;
+                }
+                $this->openInvoiceCanceller->cancel($invoice);
+                $order->addRelatedObject($invoice);
+            }
+
+            // Canceling the order closes the charge permission at Amazon, which cancels the other pending
+            // charges as well. Keep the order while another charge is still pending.
+            if (!$otherChargePending) {
+                $order->cancel();
+            }
             $order->addStatusHistoryComment($detail['reasonCode'] . ' - ' . $detail['reasonDescription']);
-            $order->cancel();
+
             $order->save();
-            $this->asyncLogger->info('Canceled Order #' . $order->getIncrementId());
+
+            if ($order->isCanceled()) {
+                $transaction = $this->getTransaction($order->getPayment()->getLastTransId());
+                if ($transaction) {
+                    $transaction->setIsClosed(true)->save();
+                }
+                $this->asyncLogger->info('Canceled Order #' . $order->getIncrementId());
+            } elseif ($otherChargePending) {
+                $this->asyncLogger->info(
+                    'Canceled charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
+                    . ', order kept: another charge is still pending'
+                );
+            } else {
+                $this->asyncLogger->error(
+                    'Unable to cancel Order #' . $order->getIncrementId() . ', order state: ' . $order->getState()
+                );
+            }
         }
+    }
+
+    /**
+     * Whether the invoice is tied to an Amazon charge other than the given one
+     *
+     * While the authorization is pending the invoice holds the checkout session ID instead of a charge ID; such
+     * an invoice is not tied to any other charge.
+     *
+     * @param \Magento\Sales\Model\Order\Invoice $invoice
+     * @param string|null $chargeId
+     * @return bool
+     */
+    private function isInvoiceOfAnotherCharge($invoice, $chargeId)
+    {
+        $transactionId = (string) $invoice->getTransactionId();
+        if (!$chargeId || !preg_match('/^[A-Z]\d{2}-\d{7}-\d{7}-[A-Z]\d{6}/', $transactionId)) {
+            return false;
+        }
+
+        return strpos($transactionId, (string) $chargeId) !== 0;
     }
 
     /**
@@ -303,10 +409,13 @@ class Charge extends AbstractOperation
     /**
      * Capture charge
      *
+     * Returns false when the invoice is still unpaid and cannot be marked paid, so that an async row stays pending and
+     * is retried. An invoice that is already paid counts as done.
+     *
      * @param \Magento\Sales\Model\Order|\Magento\Sales\Api\Data\OrderInterface $order
      * @param string $chargeId
      * @param float $chargeAmount
-     * @return void
+     * @return bool whether the invoice is paid
      */
     public function capture($order, $chargeId, $chargeAmount)
     {
@@ -322,6 +431,10 @@ class Charge extends AbstractOperation
         // Finally, load from the order if all else fails
         if (!$invoice) {
             $invoice = $order->getInvoiceCollection()->getFirstItem();
+            // an order without invoices gives an empty invoice object, which cannot be checked or captured
+            if (!$invoice->getId()) {
+                $invoice = null;
+            }
         }
 
         if ($invoice
@@ -354,18 +467,87 @@ class Charge extends AbstractOperation
             $transaction->setIsClosed(true);
             $order->save();
             $this->asyncLogger->info('Captured Order #' . $order->getIncrementId());
-        } else {
-            if (!$invoice) {
-                $errorMessage = 'Cannot create invoice for Order #' . $order->getIncrementId();
-            } else {
-                $errorMessage = 'Invoice cannot be captured -'
-                                . ' Order #' . $order->getIncrementId()
-                                . ' Order Status: ' . $invoice->getOrder()->getStatus();
-            }
-
-            $this->asyncLogger->error($errorMessage);
-            $order->addStatusHistoryComment($errorMessage);
-            $order->save();
+            return true;
         }
+
+        if ($invoice && $invoice->getState() == Invoice::STATE_PAID) {
+            // nothing left to record, for example the invoice was marked paid by hand
+            $this->asyncLogger->info(
+                'Charge ' . $chargeId . ' of Order #' . $order->getIncrementId()
+                . ' is captured, the invoice is already paid'
+            );
+            return true;
+        }
+
+        if (!$invoice) {
+            $errorMessage = 'Cannot create invoice for Order #' . $order->getIncrementId();
+        } else {
+            $errorMessage = 'Invoice cannot be captured -'
+                            . ' Order #' . $order->getIncrementId()
+                            . ' Order Status: ' . $invoice->getOrder()->getStatus();
+        }
+        $this->asyncLogger->error($errorMessage . ', charge ' . $chargeId . ' stays pending and will be retried');
+
+        // the row is retried until the invoice is paid
+        $this->reportCaptureNotRecorded($order, $chargeId, $errorMessage, true);
+
+        return false;
+    }
+
+    /**
+     * Comment on the order and notify the admin that a captured charge is not recorded as paid, only once per order
+     *
+     * @param \Magento\Sales\Model\Order $order
+     * @param string $chargeId
+     * @param string $comment
+     * @param bool $retried whether the async process keeps retrying the charge
+     * @return void
+     */
+    private function reportCaptureNotRecorded($order, $chargeId, $comment, $retried)
+    {
+        if ($this->hasStatusHistoryComment($order, $comment)) {
+            return;
+        }
+
+        $order->addStatusHistoryComment($comment);
+        $order->save();
+        if ($retried) {
+            $description = __(
+                'Order #%1 was captured at Amazon (charge %2), but its invoice could not be marked paid. '
+                . 'Check the invoice; the charge is retried until the invoice is paid.',
+                $order->getIncrementId(),
+                $chargeId
+            );
+        } else {
+            $description = __(
+                'Order #%1 was captured at Amazon (charge %2), but its invoice is canceled in Magento. '
+                . 'Check the order; this is not retried.',
+                $order->getIncrementId(),
+                $chargeId
+            );
+        }
+        $this->notifier->addNotice(
+            __('Amazon Pay capture not recorded'),
+            $description,
+            $this->urlBuilder->getUrl('sales/order/view', ['order_id' => $order->getId()])
+        );
+    }
+
+    /**
+     * Whether the order already has the given status history comment
+     *
+     * @param \Magento\Sales\Model\Order $order
+     * @param string $comment
+     * @return bool
+     */
+    private function hasStatusHistoryComment($order, $comment)
+    {
+        foreach ($order->getStatusHistoryCollection() as $history) {
+            if ($history->getComment() == $comment) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

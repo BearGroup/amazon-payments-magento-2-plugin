@@ -15,6 +15,7 @@
  */
 namespace Amazon\Pay\Plugin;
 
+use Amazon\Pay\Model\Config\Backend\PrivateKeyText;
 use Magento\Config\Model\Config;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\Exception\ValidatorException;
@@ -327,9 +328,11 @@ class ConfigCredentialsValidator
             }
         } else {
             // no file present, check for text field
-            if ($subject->getData(self::XML_PATH_PRIVATE_KEY_TEXT) &&
-                $subject->getData(self::XML_PATH_PRIVATE_KEY_TEXT) !== '------'
-            ) {
+            $privateKeyText = trim((string)$subject->getData(self::XML_PATH_PRIVATE_KEY_TEXT));
+            if ($privateKeyText === PrivateKeyText::PLACEHOLDER) {
+                // the form placeholder is never saved, so the key already stored stays in use
+                $privateKey = $this->amazonConfig->getPrivateKey($scope, $scopeCode);
+            } elseif ($privateKeyText) {
                 $privateKey = $subject->getData(self::XML_PATH_PRIVATE_KEY_TEXT);
             }
         }
